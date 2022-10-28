@@ -1,0 +1,13 @@
+/* SPDX-License-Identifier: MIT
+ *
+ * Copyright (C) 2019 WireGuard LLC. All Rights Reserved.
+ */
+
+#include <windows.h>
+
+#pragma code_page(65001) // UTF-8
+
+LANGUAGE LANG_NEUTRAL, SUBLANG_NEUTRAL
+CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST resources/manifest.xml
+$tray.ico ICON resources/spy.ico
+dot-gray.ico ICON resources/dot-gray.ico

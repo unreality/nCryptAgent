@@ -47,21 +47,21 @@ type createWindow struct {
 	err    error
 }
 
-type pageantWindow struct {
+type PageantWindow struct {
 	class     *wndClassEx
 	window    windows.Handle
 	requestCh chan request
 	debug     bool
 }
 
-func NewPageant(debug bool) (*pageantWindow, error) {
+func NewPageant(debug bool) (*PageantWindow, error) {
 
 	classNamePtr, err := syscall.UTF16PtrFromString(className)
 	if err != nil {
 		return nil, err
 	}
 
-	win := &pageantWindow{
+	win := &PageantWindow{
 		debug: debug,
 	}
 
@@ -107,7 +107,7 @@ func NewPageant(debug bool) (*pageantWindow, error) {
 	return win, nil
 }
 
-func (s *pageantWindow) AcceptCtx(ctx context.Context) (io.ReadWriteCloser, error) {
+func (s *PageantWindow) AcceptCtx(ctx context.Context) (io.ReadWriteCloser, error) {
 	select {
 	case req := <-s.requestCh:
 		return &memoryMapConn{req: req}, nil
@@ -116,7 +116,7 @@ func (s *pageantWindow) AcceptCtx(ctx context.Context) (io.ReadWriteCloser, erro
 	}
 }
 
-func (s *pageantWindow) Close() {
+func (s *PageantWindow) Close() {
 	pDestroyWindow.Call(uintptr(s.window))
 	s.class.unregister()
 }
@@ -151,7 +151,7 @@ func eventLoop(window uintptr) {
 
 // WindowProc callback function that processes messages sent to a window.
 // https://msdn.microsoft.com/en-us/library/windows/desktop/ms633573(v=vs.85).aspx
-func (s *pageantWindow) wndProc(hWnd windows.Handle, message uint32, wParam, lParam uintptr) (lResult uintptr) {
+func (s *PageantWindow) wndProc(hWnd windows.Handle, message uint32, wParam, lParam uintptr) (lResult uintptr) {
 	const (
 		WM_COPYDATA = 0x004A
 	)

@@ -10,7 +10,21 @@ import (
 	"sync"
 )
 
-type Pageant struct{}
+const TYPE_PAGEANT = "PAGEANT"
+
+type Pageant struct {
+	running   bool
+	win       *pageant.PageantWindow
+	lastError error
+}
+
+func (p *Pageant) Running() bool {
+	return p.running
+}
+
+func (p *Pageant) LastError() error {
+	return p.lastError
+}
 
 func (p *Pageant) Name() string {
 	return "Pageant/PuTTY"
@@ -22,8 +36,8 @@ func (p *Pageant) Status() string {
 }
 
 func (p *Pageant) Stop() error {
-	//TODO implement me
-	panic("implement me")
+	p.win.Close()
+	return nil
 }
 
 func (p *Pageant) Start() error {
@@ -36,20 +50,23 @@ func (p *Pageant) Restart() error {
 	panic("implement me")
 }
 
-func (*Pageant) Run(ctx context.Context, sshagent agent.Agent) error {
+func (p *Pageant) Run(ctx context.Context, sshagent agent.Agent) error {
 	debug := true
+	var err error
 	if os.Getenv("WCSA_DEBUG") == "1" {
 		debug = true
 	}
-	win, err := pageant.NewPageant(debug)
+	p.win, err = pageant.NewPageant(debug)
 	if err != nil {
 		return err
 	}
-	defer win.Close()
+	p.running = true
+	defer func() { p.running = false }()
+	defer p.win.Close()
 
 	wg := new(sync.WaitGroup)
 	for {
-		conn, err := win.AcceptCtx(ctx)
+		conn, err := p.win.AcceptCtx(ctx)
 		fmt.Println("Got pageant connection")
 		if err != nil {
 			if err != io.ErrClosedPipe {

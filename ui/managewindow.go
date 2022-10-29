@@ -16,24 +16,25 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-type ManageTunnelsWindow struct {
+type ManageKeysWindow struct {
 	walk.FormBase
 
 	tabs     *walk.TabWidget
 	keysPage *KeysPage
+	confPage *ConfPage
 }
 
 const (
 	manageWindowWindowClass = "nCryptAgent UI"
 	raiseMsg                = win.WM_USER + 0x3510
-	aboutWireGuardCmd       = 0x37
+	aboutNCryptAgentCmd     = 0x37
 )
 
 var taskbarButtonCreatedMsg uint32
 
 var initedManageTunnels sync.Once
 
-func NewManageTunnelsWindow(keyManager *ncrypt.KeyManager) (*ManageTunnelsWindow, error) {
+func NewManageKeysWindow(keyManager *ncrypt.KeyManager) (*ManageKeysWindow, error) {
 	initedManageTunnels.Do(func() {
 		walk.AppendToWalkInit(func() {
 			walk.MustRegisterWindowClass(manageWindowWindowClass)
@@ -50,7 +51,7 @@ func NewManageTunnelsWindow(keyManager *ncrypt.KeyManager) (*ManageTunnelsWindow
 		return nil, err
 	}
 
-	mtw := new(ManageTunnelsWindow)
+	mtw := new(ManageKeysWindow)
 	mtw.SetName("nCryptAgent")
 
 	err = walk.InitWindow(mtw, nil, manageWindowWindowClass, win.WS_OVERLAPPEDWINDOW, win.WS_EX_CONTROLPARENT)
@@ -97,6 +98,11 @@ func NewManageTunnelsWindow(keyManager *ncrypt.KeyManager) (*ManageTunnelsWindow
 	mtw.tabs.Pages().Add(mtw.keysPage.TabPage)
 	mtw.keysPage.CreateToolbar()
 
+	if mtw.confPage, err = NewConfPage(keyManager); err != nil {
+		return nil, err
+	}
+	mtw.tabs.Pages().Add(mtw.confPage.TabPage)
+
 	systemMenu := win.GetSystemMenu(mtw.Handle(), false)
 	if systemMenu != 0 {
 		win.InsertMenuItem(systemMenu, 0, true, &win.MENUITEMINFO{
@@ -104,7 +110,7 @@ func NewManageTunnelsWindow(keyManager *ncrypt.KeyManager) (*ManageTunnelsWindow
 			FMask:      win.MIIM_ID | win.MIIM_STRING | win.MIIM_FTYPE,
 			FType:      win.MIIM_STRING,
 			DwTypeData: windows.StringToUTF16Ptr(fmt.Sprintf("&About nCryptAgent…")),
-			WID:        uint32(aboutWireGuardCmd),
+			WID:        uint32(aboutNCryptAgentCmd),
 		})
 		win.InsertMenuItem(systemMenu, 1, true, &win.MENUITEMINFO{
 			CbSize: uint32(unsafe.Sizeof(win.MENUITEMINFO{})),
@@ -118,55 +124,26 @@ func NewManageTunnelsWindow(keyManager *ncrypt.KeyManager) (*ManageTunnelsWindow
 	return mtw, nil
 }
 
-//func (mtw *ManageTunnelsWindow) Dispose() {
+//func (mtw *ManageKeysWindow) Dispose() {
 //    mtw.FormBase.Dispose()
 //}
 
-//func (mtw *ManageTunnelsWindow) WndProc(hwnd win.HWND, msg uint32, wParam, lParam uintptr) uintptr {
-//    switch msg {
-//    case win.WM_QUERYENDSESSION:
-//        if lParam == win.ENDSESSION_CLOSEAPP {
-//            return win.TRUE
-//        }
-//    case win.WM_ENDSESSION:
-//        if lParam == win.ENDSESSION_CLOSEAPP && wParam == 1 {
-//            walk.App().Exit(198)
-//        }
-//    case win.WM_SYSCOMMAND:
-//        if wParam == aboutWireGuardCmd {
-//            onAbout(mtw)
-//            return 0
-//        }
-//    case raiseMsg:
-//        if mtw.tunnelsPage == nil || mtw.tabs == nil {
-//            mtw.Synchronize(func() {
-//                mtw.SendMessage(msg, wParam, lParam)
-//            })
-//            return 0
-//        }
-//        if !mtw.Visible() {
-//            mtw.tunnelsPage.listView.SelectFirstActiveTunnel()
-//            if mtw.tabs.Pages().Len() != 3 {
-//                mtw.tabs.SetCurrentIndex(0)
-//            }
-//        }
-//        if mtw.tabs.Pages().Len() == 3 {
-//            mtw.tabs.SetCurrentIndex(2)
-//        }
-//        raise(mtw.Handle())
-//        return 0
-//    case taskbarButtonCreatedMsg:
-//        ret := mtw.FormBase.WndProc(hwnd, msg, wParam, lParam)
-//        go func() {
-//            globalState, err := manager.IPCClientGlobalState()
-//            if err == nil {
-//                mtw.Synchronize(func() {
-//                    mtw.updateProgressIndicator(globalState)
-//                })
-//            }
-//        }()
-//        return ret
-//    }
-//
-//    return mtw.FormBase.WndProc(hwnd, msg, wParam, lParam)
-//}
+func (mtw *ManageKeysWindow) WndProc(hwnd win.HWND, msg uint32, wParam, lParam uintptr) uintptr {
+	switch msg {
+	case win.WM_QUERYENDSESSION:
+		if lParam == win.ENDSESSION_CLOSEAPP {
+			return win.TRUE
+		}
+	case win.WM_ENDSESSION:
+		if lParam == win.ENDSESSION_CLOSEAPP && wParam == 1 {
+			walk.App().Exit(198)
+		}
+	case win.WM_SYSCOMMAND:
+		if wParam == aboutNCryptAgentCmd {
+			onAbout(mtw)
+			return 0
+		}
+	}
+
+	return mtw.FormBase.WndProc(hwnd, msg, wParam, lParam)
+}

@@ -70,7 +70,41 @@ func (kma *KeyManagerAgent) SignWithFlags(key ssh.PublicKey, data []byte, flags 
 				default:
 					return nil, fmt.Errorf("agent: unsupported signature flags: %d", flags)
 				}
-				return k.SignWithAlgorithmSSH(data, algorithm)
+				sig, err := k.SignWithAlgorithmSSH(data, algorithm)
+
+				if err != nil {
+					kma.km.Notify(NotifyMsg{
+						Title:   "SSH Sign Failed",
+						Message: fmt.Sprintf("Failed to sign message with key \"%s\"", k.Name),
+						Icon: struct {
+							DLL   string
+							Index int32
+							Size  int
+						}{
+							DLL:   "imageres",
+							Index: 100,
+							Size:  32,
+						},
+					})
+
+					return nil, err
+				}
+
+				kma.km.Notify(NotifyMsg{
+					Title:   "SSH Sign Successful",
+					Message: fmt.Sprintf("Signed message with key \"%s\"", k.Name),
+					Icon: struct {
+						DLL   string
+						Index int32
+						Size  int
+					}{
+						DLL:   "imageres",
+						Index: 101,
+						Size:  32,
+					},
+				})
+
+				return sig, err
 			}
 		}
 	}

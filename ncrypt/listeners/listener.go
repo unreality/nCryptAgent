@@ -6,14 +6,14 @@ import (
 )
 
 const (
-	STATUS_OK = "ok"
+	STATUS_OK      = "ok"
+	STATUS_STOPPED = "stopped"
 )
 
 type Listener interface {
 	Run(ctx context.Context, agent agent.Agent) error
 	Name() string
-	Status() string
 	Stop() error
-	Start() error
-	Restart() error
+	LastError() error
+	Running() bool
 }

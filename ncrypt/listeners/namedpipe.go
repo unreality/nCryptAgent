@@ -6,13 +6,25 @@ import (
 	"github.com/Microsoft/go-winio"
 	"golang.org/x/crypto/ssh/agent"
 	"io"
+	"net"
 	"sync"
 )
 
 const NAMED_PIPE = "\\\\.\\pipe\\openssh-ssh-agent"
+const TYPE_NAMED_PIPE = "NAMED_PIPE"
 
 type NamedPipe struct {
-	running bool
+	running   bool
+	pipe      net.Listener
+	lastError error
+}
+
+func (s *NamedPipe) Running() bool {
+	return s.running
+}
+
+func (s *NamedPipe) LastError() error {
+	return s.lastError
 }
 
 func (s *NamedPipe) Name() string {
@@ -20,18 +32,15 @@ func (s *NamedPipe) Name() string {
 }
 
 func (s *NamedPipe) Status() string {
-	//TODO implement me
-	panic("implement me")
+	if s.running {
+		return STATUS_OK
+	} else {
+		return STATUS_STOPPED
+	}
 }
 
 func (s *NamedPipe) Stop() error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (s *NamedPipe) Start() error {
-	//TODO implement me
-	panic("implement me")
+	return s.pipe.Close()
 }
 
 func (s *NamedPipe) Restart() error {
@@ -41,13 +50,15 @@ func (s *NamedPipe) Restart() error {
 
 func (s *NamedPipe) Run(ctx context.Context, sshagent agent.Agent) error {
 	var cfg = &winio.PipeConfig{}
-	pipe, err := winio.ListenPipe(NAMED_PIPE, cfg)
-	if err != nil {
-		return err
+	s.pipe, s.lastError = winio.ListenPipe(NAMED_PIPE, cfg)
+
+	if s.lastError != nil {
+		return s.lastError
 	}
 
 	s.running = true
-	defer pipe.Close()
+	defer s.pipe.Close()
+	defer func() { s.running = false }()
 
 	wg := new(sync.WaitGroup)
 	// context cancelled
@@ -57,19 +68,20 @@ func (s *NamedPipe) Run(ctx context.Context, sshagent agent.Agent) error {
 	}()
 	// loop
 	for {
-		conn, err := pipe.Accept()
-		fmt.Println("Got an agent connection")
-		if err != nil {
-			if err != winio.ErrPipeListenerClosed {
-				return err
+		var conn net.Conn
+		conn, s.lastError = s.pipe.Accept()
+
+		if s.lastError != nil {
+			if s.lastError != winio.ErrPipeListenerClosed {
+				return s.lastError
 			}
 			return nil
 		}
 		wg.Add(1)
 		go func() {
-			err := agent.ServeAgent(sshagent, conn)
-			if err != nil && err != io.EOF {
-				println(err.Error())
+			s.lastError = agent.ServeAgent(sshagent, conn)
+			if s.lastError != nil && s.lastError != io.EOF {
+				fmt.Println(s.lastError.Error())
 			}
 			wg.Done()
 		}()

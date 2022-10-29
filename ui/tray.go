@@ -19,17 +19,16 @@ type Tray struct {
 	// Current known keys by name
 	//keys map[string]*walk.Action
 
-	mtw *ManageTunnelsWindow
+	mtw *ManageKeysWindow
 
 	clicked func()
 }
 
-func NewTray(mtw *ManageTunnelsWindow) (*Tray, error) {
+func NewTray(mtw *ManageKeysWindow) (*Tray, error) {
 	var err error
 
 	tray := &Tray{
 		mtw: mtw,
-		//keys: make(map[string]*walk.Action),
 	}
 
 	tray.NotifyIcon, err = walk.NewNotifyIcon(mtw)
@@ -41,7 +40,7 @@ func NewTray(mtw *ManageTunnelsWindow) (*Tray, error) {
 }
 
 func (tray *Tray) setup() error {
-	tray.clicked = tray.onManageTunnels
+	tray.clicked = tray.onManageKeys
 
 	tray.SetToolTip(fmt.Sprintf("nCryptAgent - Running"))
 	tray.SetVisible(true)
@@ -66,7 +65,7 @@ func (tray *Tray) setup() error {
 		separator bool
 		defawlt   bool
 	}{
-		{label: fmt.Sprintf("&Manage keys…"), handler: tray.onManageTunnels, enabled: true, defawlt: true},
+		{label: fmt.Sprintf("&Manage keys…"), handler: tray.onManageKeys, enabled: true, defawlt: true},
 		{separator: true},
 		{label: fmt.Sprintf("&About nCryptAgent…"), handler: tray.onAbout, enabled: true},
 		{label: fmt.Sprintf("E&xit"), handler: onQuit, enabled: true},
@@ -95,18 +94,18 @@ func (tray *Tray) Dispose() error {
 	return tray.NotifyIcon.Dispose()
 }
 
-func (tray *Tray) onManageTunnels() {
+func (tray *Tray) onManageKeys() {
 	//tray.mtw.tunnelsPage.listView.SelectFirstActiveTunnel()
 	//tray.mtw.tabs.SetCurrentIndex(0)
 	raise(tray.mtw.Handle())
 }
 
 func (tray *Tray) onAbout() {
-	//if tray.mtw.Visible() {
-	//    onAbout(tray.mtw)
-	//} else {
-	//    onAbout(nil)
-	//}
+	if tray.mtw.Visible() {
+		onAbout(tray.mtw)
+	} else {
+		onAbout(nil)
+	}
 }
 
 func (tray *Tray) Handle() {

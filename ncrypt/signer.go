@@ -131,7 +131,7 @@ func (s *Signer) handlePinTimer() {
 			fmt.Printf("PIN Cache purged\n")
 		})
 		s.timeractive = true
-	} else if s.timeout <= 0 {
+	} else if s.timeout == 0 {
 		NCryptSetProperty(s.keyHandle, NCRYPT_PIN_PROPERTY, "", 0)
 	}
 }
@@ -142,4 +142,8 @@ func (s *Signer) Public() crypto.PublicKey {
 
 func (s *Signer) SetHwnd(hwnd uintptr) {
 	s.hwnd = uintptr(hwnd)
+}
+
+func (s *Signer) SetPINTimeout(timeout int) {
+	s.timeout = timeout
 }

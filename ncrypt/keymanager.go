@@ -20,6 +20,16 @@ import (
 	"sync"
 )
 
+type NotifyMsg struct {
+	Title   string
+	Message string
+	Icon    struct {
+		DLL   string
+		Index int32
+		Size  int
+	}
+}
+
 type KeyConfig struct {
 	Name          string `json:"name"`
 	Type          string `json:"type"`
@@ -31,8 +41,12 @@ type KeyConfig struct {
 }
 
 type KeyManagerConfig struct {
-	Keys       []*KeyConfig `json:"keys,omitempty"`
-	PinTimeout int          `json:"pinTimeout,omitempty"`
+	Keys             []*KeyConfig `json:"keys,omitempty"`
+	PinTimeout       int          `json:"pinTimeout,omitempty"`
+	PageantEnabled   bool         `json:"pageant"`
+	VSockEnabled     bool         `json:"vsock"`
+	NamedPipeEnabled bool         `json:"namedpipe"`
+	CygwinEnabled    bool         `json:"cygwin"`
 }
 
 type Key struct {
@@ -218,6 +232,14 @@ func (k *Key) SetHWND(hwnd uintptr) {
 	}
 }
 
+func (k *Key) SetTimeout(timeout int) {
+	if k.signer != nil {
+		if ncryptSigner, ok := (*k.signer).(*Signer); ok {
+			ncryptSigner.SetPINTimeout(timeout)
+		}
+	}
+}
+
 func (k *Key) SSHCertificateSerial() string {
 	if k.SSHCertificate != nil {
 		return strconv.FormatUint(k.SSHCertificate.Serial, 10)
@@ -231,9 +253,18 @@ type KeyManager struct {
 	configPath      string
 	publicKeysDir   string
 	config          *KeyManagerConfig
-	listeners       []listeners.Listener
-	cancel          context.CancelFunc
-	hwnd            win.HWND
+
+	lwg    *sync.WaitGroup
+	lctx   context.Context
+	cancel context.CancelFunc
+	hwnd   win.HWND
+
+	namedPipeListener *listeners.NamedPipe
+	cygwinListener    *listeners.Cygwin
+	vSockListener     *listeners.VSock
+	pageantListener   *listeners.Pageant
+	sshAgent          KeyManagerAgent
+	notifyChan        chan NotifyMsg
 }
 
 func NewKeyManager(configPath string) (*KeyManager, error) {
@@ -276,34 +307,36 @@ func NewKeyManager(configPath string) (*KeyManager, error) {
 	km.providerHandles = make(map[string]uintptr)
 	km.configPath = configPath
 
-	sshAgent := KeyManagerAgent{
+	km.sshAgent = KeyManagerAgent{
 		km:     &km,
 		locked: false,
 		mu:     sync.Mutex{},
 	}
 
-	l := []listeners.Listener{
-		new(listeners.NamedPipe),
-		new(listeners.Pageant),
-		new(listeners.Cygwin),
-		new(listeners.VSock),
+	km.namedPipeListener = new(listeners.NamedPipe)
+	km.pageantListener = new(listeners.Pageant)
+	km.cygwinListener = new(listeners.Cygwin)
+	km.cygwinListener.Sockfile = filepath.Join(filepath.Dir(km.configPath), "cygwin-agent.sock")
+	km.vSockListener = new(listeners.VSock)
+
+	km.lctx, km.cancel = context.WithCancel(context.Background())
+
+	km.lwg = new(sync.WaitGroup)
+
+	if km.config.CygwinEnabled {
+		km.StartListener(km.cygwinListener)
 	}
 
-	var ctx context.Context
-	ctx, km.cancel = context.WithCancel(context.Background())
+	if km.config.VSockEnabled {
+		km.StartListener(km.vSockListener)
+	}
 
-	wg := new(sync.WaitGroup)
-	for _, v := range l {
-		wg.Add(1)
-		go func(listener listeners.Listener) {
-			fmt.Printf("Starting listener %T\n", listener)
-			err := listener.Run(ctx, &sshAgent)
-			if err != nil {
-				fmt.Printf("Loading key %s\n", err)
-				return
-			}
-			wg.Done()
-		}(v)
+	if km.config.NamedPipeEnabled {
+		km.StartListener(km.namedPipeListener)
+	}
+
+	if km.config.PageantEnabled {
+		km.StartListener(km.pageantListener)
 	}
 
 	for _, k := range kmc.Keys {
@@ -343,6 +376,33 @@ func NewKeyManager(configPath string) (*KeyManager, error) {
 	}
 
 	return &km, nil
+}
+
+func (km *KeyManager) StartListener(listener listeners.Listener) {
+	km.lwg.Add(1)
+	go func(l listeners.Listener) {
+		fmt.Printf("Starting listener %T\n", l)
+		err := l.Run(km.lctx, &km.sshAgent)
+		if err != nil {
+			fmt.Printf("Loading key %s\n", err)
+			return
+		}
+		km.lwg.Done()
+	}(listener)
+}
+
+func (km *KeyManager) EnsureListenerIs(listener listeners.Listener, enabled bool) {
+	if listener.Running() == enabled {
+		return
+	}
+
+	if listener.Running() == false && enabled == true {
+		km.StartListener(listener)
+	}
+
+	if listener.Running() == true && enabled == false {
+		listener.Stop()
+	}
 }
 
 func (km *KeyManager) LoadKey(kc *KeyConfig) (*Key, error) {
@@ -608,4 +668,61 @@ func (km *KeyManager) DeleteKey(keyToDelete *Key, deleteFromKeystore bool) error
 
 	return km.SaveConfig()
 
+}
+
+func (km *KeyManager) SetPinTimeout(timeout int) {
+	km.config.PinTimeout = timeout
+	for _, k := range km.Keys {
+		k.SetTimeout(timeout)
+	}
+}
+
+func (km *KeyManager) GetPinTimeout() int {
+	return km.config.PinTimeout
+}
+
+func (km *KeyManager) EnableListener(listenerType string, enabled bool) {
+	switch listenerType {
+	case listeners.TYPE_PAGEANT:
+		km.EnsureListenerIs(km.pageantListener, enabled)
+		km.config.PageantEnabled = enabled
+	case listeners.TYPE_CYGWIN:
+		km.EnsureListenerIs(km.cygwinListener, enabled)
+		km.config.CygwinEnabled = enabled
+	case listeners.TYPE_VSOCK:
+		km.EnsureListenerIs(km.vSockListener, enabled)
+		km.config.VSockEnabled = enabled
+	case listeners.TYPE_NAMED_PIPE:
+		km.EnsureListenerIs(km.namedPipeListener, enabled)
+		km.config.NamedPipeEnabled = enabled
+	}
+}
+
+func (km *KeyManager) GetListenerEnabled(listenerType string) bool {
+	switch listenerType {
+	case listeners.TYPE_PAGEANT:
+		return km.config.PageantEnabled
+	case listeners.TYPE_CYGWIN:
+		return km.config.CygwinEnabled
+	case listeners.TYPE_VSOCK:
+		return km.config.VSockEnabled
+	case listeners.TYPE_NAMED_PIPE:
+		return km.config.NamedPipeEnabled
+	}
+
+	return false
+}
+
+func (km *KeyManager) SetNotifyChan(c chan NotifyMsg) {
+	km.notifyChan = c
+}
+
+func (km *KeyManager) Notify(n NotifyMsg) {
+	if km.notifyChan != nil {
+		km.notifyChan <- n
+	}
+}
+
+func (km *KeyManager) CygwinSocketLocation() string {
+	return km.cygwinListener.Sockfile
 }

@@ -181,10 +181,11 @@ func NewKeyView(parent walk.Container) (*KeyView, error) {
 }
 
 func (kv *KeyView) SetKey(k *ncrypt.Key) {
+	kv.name.SetVisible(k != nil)
 	if k == nil {
 		return
 	}
-	kv.currentKey = k //XXX: This races with the read in the updateTicker, but it's pointer-sized!
+	kv.currentKey = k
 
 	title := fmt.Sprintf("Key: %s", k.Name)
 	if kv.name.Title() != title {
@@ -192,11 +193,9 @@ func (kv *KeyView) SetKey(k *ncrypt.Key) {
 		defer kv.SetSuspended(false)
 		kv.name.SetTitle(title)
 	}
-	kv.name.SetVisible(k != nil)
 
 	kv.keyInfo.apply(k)
 	kv.keyInfo.name.update(*k)
-	//kv.keyInfo.toggleActive.update(state)
 }
 
 type labelStatusLine struct {

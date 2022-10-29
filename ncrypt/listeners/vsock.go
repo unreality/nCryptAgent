@@ -25,6 +25,7 @@ var (
 const (
 	servicePort          = 0x22223333
 	HyperVServiceRegPath = `SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization\GuestCommunicationServices`
+	TYPE_VSOCK           = "VSOCK"
 )
 
 // https://docs.microsoft.com/en-us/virtualization/hyper-v-on-windows/user-guide/make-integration-service
@@ -34,6 +35,15 @@ const (
 
 type VSock struct {
 	running bool
+}
+
+func (s *VSock) Running() bool {
+	return s.running
+}
+
+func (s *VSock) LastError() error {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (s *VSock) Name() string {

@@ -11,17 +11,26 @@ import (
 	"io"
 	"net"
 	"os"
-	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
 )
 
 const CYGWIN_SOCK = "ncryptagent.sock"
+const TYPE_CYGWIN = "CYGWIN"
 
 type Cygwin struct {
 	running  bool
-	sockfile string
+	Sockfile string
+}
+
+func (s *Cygwin) Running() bool {
+	return s.running
+}
+
+func (s *Cygwin) LastError() error {
+	//TODO implement me
+	panic("implement me")
 }
 
 func (s *Cygwin) Name() string {
@@ -124,13 +133,14 @@ func cygwinHandshake(conn net.Conn, uuid []byte) error {
 }
 
 func (s *Cygwin) Run(ctx context.Context, sshagent agent.Agent) error {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-	sockfile := filepath.Join(home, CYGWIN_SOCK)
-	s.sockfile = sockfile
-	fmt.Printf("CYGWIN socket at: %s\n", s.sockfile)
+	//home, err := os.UserConfigDir()
+	//if err != nil {
+	//	return err
+	//}
+	//Sockfile := filepath.Join(home, CYGWIN_SOCK)
+	//s.Sockfile = Sockfile
+	//fmt.Printf("CYGWIN socket at: %s\n", s.Sockfile)
+
 	// listen tcp socket
 	l, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
@@ -138,11 +148,11 @@ func (s *Cygwin) Run(ctx context.Context, sshagent agent.Agent) error {
 	}
 	defer func() {
 		defer l.Close()
-		os.Remove(sockfile)
+		os.Remove(s.Sockfile)
 	}()
 	// cygwin socket uuid
 	port := l.Addr().(*net.TCPAddr).Port
-	uuid, err := createCygwinSocket(sockfile, port)
+	uuid, err := createCygwinSocket(s.Sockfile, port)
 	if err != nil {
 		return err
 	}

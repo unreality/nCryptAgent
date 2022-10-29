@@ -34,7 +34,7 @@ func RunUI() {
 
 	var (
 		err  error
-		mtw  *ManageTunnelsWindow
+		mtw  *ManageKeysWindow
 		tray *Tray
 	)
 
@@ -54,7 +54,7 @@ func RunUI() {
 	defer km.Close()
 
 	for mtw == nil {
-		mtw, err = NewManageTunnelsWindow(km)
+		mtw, err = NewManageKeysWindow(km)
 		if err != nil {
 			time.Sleep(time.Millisecond * 400)
 		}
@@ -73,11 +73,30 @@ func RunUI() {
 		win.ShowWindow(mtw.Handle(), win.SW_MINIMIZE)
 	}
 
+	// Setup a chan to receive notification messages
+	notifyChan := make(chan ncrypt.NotifyMsg)
+	quitChan := make(chan int)
+
+	go func() {
+		for {
+			select {
+			case v := <-notifyChan:
+				icon, _ := loadSystemIcon(v.Icon.DLL, v.Icon.Index, v.Icon.Size)
+				tray.ShowCustom(v.Title, v.Message, icon)
+			case <-quitChan:
+				return
+			}
+		}
+	}()
+
+	km.SetNotifyChan(notifyChan)
+
 	mtw.Run()
 	if tray != nil {
 		tray.Dispose()
 	}
 	mtw.Dispose()
+	quitChan <- 0
 
 }
 

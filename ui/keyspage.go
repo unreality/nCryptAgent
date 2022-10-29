@@ -133,33 +133,23 @@ func (kp *KeysPage) CreateToolbar() error {
 	kp.AddDisposable(addMenu)
 
 	createAction := walk.NewAction()
-	createAction.SetText(fmt.Sprintf("Create &NCrypt Key…"))
-	importActionIcon, _ := loadSystemIcon("imageres", 3, 16)
+	createAction.SetText(fmt.Sprintf("Create &nCrypt Key…"))
+	importActionIcon, _ := loadSystemIcon("imageres", 77, 16)
 	createAction.SetImage(importActionIcon)
-	createAction.SetShortcut(walk.Shortcut{walk.ModControl, walk.KeyN})
 	createAction.SetDefault(true)
 	createAction.Triggered().Attach(kp.onCreateKey)
 	addMenu.Actions().Add(createAction)
 
 	createExistingAction := walk.NewAction()
-	createExistingAction.SetText(fmt.Sprintf("Add &Existing key…"))
-	createExistingActionIcon, _ := loadSystemIcon("imageres", 3, 16)
+	createExistingAction.SetText(fmt.Sprintf("Add &Existing nCrypt key…"))
+	createExistingActionIcon, _ := loadSystemIcon("imageres", 172, 16)
 	createExistingAction.SetImage(createExistingActionIcon)
-	createExistingAction.SetShortcut(walk.Shortcut{walk.ModControl, walk.KeyE})
 	createExistingAction.SetDefault(true)
 	createExistingAction.Triggered().Attach(kp.onCreateExistingKey)
 	addMenu.Actions().Add(createExistingAction)
 
-	createFIDOAction := walk.NewAction()
-	createFIDOAction.SetText(fmt.Sprintf("Create &FIDO Key…"))
-	addActionIcon, _ := loadSystemIcon("imageres", 2, 16)
-	createFIDOAction.SetImage(addActionIcon)
-	createFIDOAction.SetShortcut(walk.Shortcut{walk.ModControl, walk.KeyF})
-	createFIDOAction.Triggered().Attach(kp.onDummy)
-	addMenu.Actions().Add(createFIDOAction)
-
 	addMenuAction := walk.NewMenuAction(addMenu)
-	addMenuActionIcon, _ := loadSystemIcon("shell32", 149, 16)
+	addMenuActionIcon, _ := loadSystemIcon("shell32", 104, 16)
 	addMenuAction.SetImage(addMenuActionIcon)
 	addMenuAction.SetText(fmt.Sprintf("Create Key"))
 	addMenuAction.SetToolTip(createAction.Text())
@@ -171,18 +161,10 @@ func (kp *KeysPage) CreateToolbar() error {
 	deleteAction := walk.NewAction()
 	deleteActionIcon, _ := loadSystemIcon("shell32", 131, 16)
 	deleteAction.SetImage(deleteActionIcon)
-	deleteAction.SetShortcut(walk.Shortcut{0, walk.KeyDelete})
 	deleteAction.SetToolTip(fmt.Sprintf("Delete selected key(s)"))
 	deleteAction.Triggered().Attach(kp.onDelete)
 	kp.listToolbar.Actions().Add(deleteAction)
 	kp.listToolbar.Actions().Add(walk.NewSeparatorAction())
-
-	//exportAction := walk.NewAction()
-	//exportActionIcon, _ := loadSystemIcon("imageres", 165, 16) // Or "shell32", 45?
-	//exportAction.SetImage(exportActionIcon)
-	//exportAction.SetToolTip(fmt.Sprintf("Export all keys to zip"))
-	//exportAction.Triggered().Attach(kp.onDummy)
-	//kp.listToolbar.Actions().Add(exportAction)
 
 	fixContainerWidthToToolbarWidth := func() {
 		toolbarWidth := kp.listToolbar.SizeHint().Width
@@ -199,24 +181,15 @@ func (kp *KeysPage) CreateToolbar() error {
 
 	importAction2 := walk.NewAction()
 	importAction2.SetText(fmt.Sprintf("&Create new nCrypt Key…"))
-	importAction2.SetShortcut(walk.Shortcut{walk.ModControl, walk.KeyN})
 	importAction2.Triggered().Attach(kp.onCreateKey)
 	contextMenu.Actions().Add(importAction2)
 	kp.ShortcutActions().Add(importAction2)
 
 	createExistingAction2 := walk.NewAction()
 	createExistingAction2.SetText(fmt.Sprintf("&Add existing key…"))
-	createExistingAction2.SetShortcut(walk.Shortcut{walk.ModControl, walk.KeyE})
 	createExistingAction2.Triggered().Attach(kp.onCreateExistingKey)
 	contextMenu.Actions().Add(createExistingAction2)
 	kp.ShortcutActions().Add(createExistingAction2)
-
-	createFIDOAction2 := walk.NewAction()
-	createFIDOAction2.SetText(fmt.Sprintf("Add &FIDO Key…"))
-	createFIDOAction2.SetShortcut(walk.Shortcut{walk.ModControl, walk.KeyN})
-	createFIDOAction2.Triggered().Attach(kp.onDummy)
-	contextMenu.Actions().Add(createFIDOAction2)
-	kp.ShortcutActions().Add(createFIDOAction2)
 
 	kp.listView.SetContextMenu(contextMenu)
 
@@ -226,17 +199,6 @@ func (kp *KeysPage) CreateToolbar() error {
 	}
 	kp.listView.SelectedIndexesChanged().Attach(setSelectionOrientedOptions)
 	setSelectionOrientedOptions()
-
-	//setExport := func() {
-	//    all := len(kp.listView.model.keys)
-	//    //exportAction.SetEnabled(all > 0)
-	//    exportAction2.SetEnabled(all > 0)
-	//}
-	//setExportRange := func(from, to int) { setExport() }
-	//kp.listView.model.RowsInserted().Attach(setExportRange)
-	//kp.listView.model.RowsRemoved().Attach(setExportRange)
-	//kp.listView.model.RowsReset().Attach(setExport)
-	//setExport()
 
 	return nil
 }
@@ -248,7 +210,6 @@ func (kp *KeysPage) updateKeyView() {
 func (kp *KeysPage) onCreateKey() {
 	if config := runCreateKeyDialog(kp.Form(), kp.keyManager); config != nil {
 		go func() {
-
 			_, err := kp.keyManager.CreateNewNCryptKey(config.Name,
 				config.ContainerName,
 				config.ProviderName,
@@ -261,7 +222,6 @@ func (kp *KeysPage) onCreateKey() {
 			}
 
 			kp.listView.Load(false)
-
 		}()
 	}
 }
@@ -294,14 +254,15 @@ func (kp *KeysPage) onDelete() {
 		kp.listView.SetCurrentIndex(0)
 
 		if len(kp.keyManager.Keys) == 0 {
-			kp.keyView.SetKey(&ncrypt.Key{
-				Name:                 "No Keys",
-				Type:                 "None",
-				SSHPublicKey:         nil,
-				SSHPublicKeyLocation: "",
-				Missing:              true,
-				LoadError:            nil,
-			})
+			kp.keyView.SetKey(nil)
+			//kp.keyView.SetKey(&ncrypt.Key{
+			//	Name:                 "No Keys",
+			//	Type:                 "None",
+			//	SSHPublicKey:         nil,
+			//	SSHPublicKeyLocation: "",
+			//	Missing:              true,
+			//	LoadError:            nil,
+			//})
 		}
 	}
 }

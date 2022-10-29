@@ -388,7 +388,7 @@ func (km *KeyManager) StartListener(listener listeners.Listener) {
 		fmt.Printf("Starting listener %T\n", l)
 		err := l.Run(km.lctx, &km.sshAgent)
 		if err != nil {
-			fmt.Printf("Loading key %s\n", err)
+			fmt.Printf("Error result from listener Run(): %s\n", err)
 			return
 		}
 		km.lwg.Done()

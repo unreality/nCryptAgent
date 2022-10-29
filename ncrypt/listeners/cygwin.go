@@ -20,8 +20,9 @@ const CYGWIN_SOCK = "ncryptagent.sock"
 const TYPE_CYGWIN = "CYGWIN"
 
 type Cygwin struct {
-	running  bool
-	Sockfile string
+	running     bool
+	Sockfile    string
+	netListener net.Listener
 }
 
 func (s *Cygwin) Running() bool {
@@ -43,8 +44,8 @@ func (s *Cygwin) Status() string {
 }
 
 func (s *Cygwin) Stop() error {
-	//TODO implement me
-	panic("implement me")
+	s.running = false
+	return s.netListener.Close()
 }
 
 func (s *Cygwin) Start() error {
@@ -142,16 +143,17 @@ func (s *Cygwin) Run(ctx context.Context, sshagent agent.Agent) error {
 	//fmt.Printf("CYGWIN socket at: %s\n", s.Sockfile)
 
 	// listen tcp socket
-	l, err := net.Listen("tcp", "localhost:0")
+	var err error
+	s.netListener, err = net.Listen("tcp", "localhost:0")
 	if err != nil {
 		return err
 	}
 	defer func() {
-		defer l.Close()
+		defer s.netListener.Close()
 		os.Remove(s.Sockfile)
 	}()
 	// cygwin socket uuid
-	port := l.Addr().(*net.TCPAddr).Port
+	port := s.netListener.Addr().(*net.TCPAddr).Port
 	uuid, err := createCygwinSocket(s.Sockfile, port)
 	if err != nil {
 		return err
@@ -166,8 +168,8 @@ func (s *Cygwin) Run(ctx context.Context, sshagent agent.Agent) error {
 			return nil
 		default:
 		}
-		SetListenerDeadline(l, time.Now().Add(time.Second))
-		conn, err := l.Accept()
+		SetListenerDeadline(s.netListener, time.Now().Add(time.Second))
+		conn, err := s.netListener.Accept()
 		if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
 			continue
 		}

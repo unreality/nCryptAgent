@@ -35,6 +35,7 @@ const (
 
 type VSock struct {
 	running bool
+	pipe    *winio.HvsockListener
 }
 
 func (s *VSock) Running() bool {
@@ -42,32 +43,16 @@ func (s *VSock) Running() bool {
 }
 
 func (s *VSock) LastError() error {
-	//TODO implement me
-	panic("implement me")
+	return nil
 }
 
 func (s *VSock) Name() string {
 	return "WSL2"
 }
 
-func (s *VSock) Status() string {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (s *VSock) Stop() error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (s *VSock) Start() error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (s *VSock) Restart() error {
-	//TODO implement me
-	panic("implement me")
+	s.running = false
+	return s.pipe.Close()
 }
 
 type vSockWorker struct {
@@ -185,7 +170,8 @@ func (s *VSock) Run(ctx context.Context, sshagent agent.Agent) error {
 		return nil
 	}
 
-	pipe, err := winio.ListenHvsock(&winio.HvsockAddr{
+	var err error
+	s.pipe, err = winio.ListenHvsock(&winio.HvsockAddr{
 		VMID:      vmWildCard,
 		ServiceID: HyperVServiceGUID,
 	})
@@ -194,7 +180,7 @@ func (s *VSock) Run(ctx context.Context, sshagent agent.Agent) error {
 	}
 
 	s.running = true
-	defer pipe.Close()
+	defer s.pipe.Close()
 
 	go s.wsl2Watcher(ctx, sshagent)
 
@@ -206,7 +192,7 @@ func (s *VSock) Run(ctx context.Context, sshagent agent.Agent) error {
 	}()
 	// loop
 	for {
-		conn, err := pipe.Accept()
+		conn, err := s.pipe.Accept()
 		if err != nil {
 			return nil
 		}

@@ -54,9 +54,16 @@ func (kma *KeyManagerAgent) Sign(key ssh.PublicKey, data []byte) (*ssh.Signature
 }
 
 func (kma *KeyManagerAgent) SignWithFlags(key ssh.PublicKey, data []byte, flags agent.SignatureFlags) (*ssh.Signature, error) {
+
 	for _, k := range kma.km.KeysList() {
+		// Some clients might send the certificate blob as a key instead, so check equality for that
+		var certMatches = false
+		if k.SSHCertificate != nil {
+			certMatches = bytes.Equal(k.SSHCertificate.Marshal(), key.Marshal())
+		}
+
 		pub := *k.SSHPublicKey
-		if bytes.Equal(pub.Marshal(), key.Marshal()) {
+		if bytes.Equal(pub.Marshal(), key.Marshal()) || certMatches {
 			if flags == 0 {
 				sig, err := k.SignSSH(data)
 

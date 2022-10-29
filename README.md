@@ -73,5 +73,5 @@ I'll get around to making a proper build script at some point...
 
 ## Known Issues
 
-* Sometimes the PIN prompt does not obtain focus correctly and will popup in the background
-* 
+* Sometimes the PIN prompt does not obtain focus correctly and will popup in the background.
+* Sometimes the 'Copy' buttons do not correctly copy to clipboard.

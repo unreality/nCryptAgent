@@ -15,6 +15,30 @@ type NamedPipe struct {
 	running bool
 }
 
+func (s *NamedPipe) Name() string {
+	return "Named Pipe"
+}
+
+func (s *NamedPipe) Status() string {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *NamedPipe) Stop() error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *NamedPipe) Start() error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (s *NamedPipe) Restart() error {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (s *NamedPipe) Run(ctx context.Context, sshagent agent.Agent) error {
 	var cfg = &winio.PipeConfig{}
 	pipe, err := winio.ListenPipe(NAMED_PIPE, cfg)

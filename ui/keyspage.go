@@ -16,9 +16,9 @@ type KeysPage struct {
 	fillerButton  *walk.PushButton
 	fillerHandler func()
 
-	fillerContainer        *walk.Composite
-	currentTunnelContainer *walk.Composite
-	keyManager             *ncrypt.KeyManager
+	fillerContainer     *walk.Composite
+	currentKeyContainer *walk.Composite
+	keyManager          *ncrypt.KeyManager
 }
 
 func NewKeysPage(keyManager *ncrypt.KeyManager) (*KeysPage, error) {
@@ -48,12 +48,12 @@ func NewKeysPage(keyManager *ncrypt.KeyManager) (*KeysPage, error) {
 		return nil, err
 	}
 
-	if kp.currentTunnelContainer, err = walk.NewComposite(kp); err != nil {
+	if kp.currentKeyContainer, err = walk.NewComposite(kp); err != nil {
 		return nil, err
 	}
 	vlayout = walk.NewVBoxLayout()
 	vlayout.SetMargins(walk.Margins{})
-	kp.currentTunnelContainer.SetLayout(vlayout)
+	kp.currentKeyContainer.SetLayout(vlayout)
 
 	if kp.fillerContainer, err = walk.NewComposite(kp); err != nil {
 		return nil, err
@@ -70,11 +70,11 @@ func NewKeysPage(keyManager *ncrypt.KeyManager) (*KeysPage, error) {
 		}
 	})
 
-	if kp.keyView, err = NewKeyView(kp.currentTunnelContainer); err != nil {
+	if kp.keyView, err = NewKeyView(kp.currentKeyContainer); err != nil {
 		return nil, err
 	}
 
-	controlsContainer, err := walk.NewComposite(kp.currentTunnelContainer)
+	controlsContainer, err := walk.NewComposite(kp.currentKeyContainer)
 	if err != nil {
 		return nil, err
 	}
@@ -91,15 +91,15 @@ func NewKeysPage(keyManager *ncrypt.KeyManager) (*KeysPage, error) {
 	kp.listView.CurrentIndexChanged().Attach(func() {
 		editTunnel.SetEnabled(kp.listView.CurrentIndex() > -1)
 	})
-	editTunnel.SetText(fmt.Sprintf("&Edit"))
-	editTunnel.Clicked().Attach(kp.onDummy)
+	editTunnel.SetText(fmt.Sprintf("&Add Certificate"))
+	editTunnel.Clicked().Attach(kp.onAddCertificate)
 
 	disposables.Spare()
 
 	//kp.listView.ItemCountChanged().Attach(kp.onTunnelsChanged)
 	//kp.listView.SelectedIndexesChanged().Attach(kp.onSelectedTunnelsChanged)
 	//kp.listView.ItemActivated().Attach(kp.onTunnelsViewItemActivated)
-	kp.listView.CurrentIndexChanged().Attach(kp.updateConfView)
+	kp.listView.CurrentIndexChanged().Attach(kp.updateKeyView)
 
 	kp.listView.Load(false)
 
@@ -241,7 +241,7 @@ func (kp *KeysPage) CreateToolbar() error {
 	return nil
 }
 
-func (kp *KeysPage) updateConfView() {
+func (kp *KeysPage) updateKeyView() {
 	kp.keyView.SetKey(kp.listView.CurrentKey())
 }
 
@@ -308,4 +308,24 @@ func (kp *KeysPage) onDelete() {
 
 func (kp *KeysPage) onDummy() {
 
+}
+
+func (kp *KeysPage) onAddCertificate() {
+	dlg := walk.FileDialog{
+		Filter: fmt.Sprintf("OpenSSH Key Files (*.pub)|*.pub|All Files (*.*)|*.*"),
+		Title:  fmt.Sprintf("Attach certificate to key"),
+	}
+
+	if ok, _ := dlg.ShowOpen(kp.Form()); !ok {
+		return
+	}
+
+	k := kp.listView.CurrentKey()
+	err := k.LoadCertificate(dlg.FilePath)
+
+	kp.keyView.SetKey(k)
+
+	if err != nil {
+		showError(err, kp.Form())
+	}
 }

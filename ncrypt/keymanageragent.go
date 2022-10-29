@@ -32,6 +32,17 @@ func (kma *KeyManagerAgent) List() ([]*agent.Key, error) {
 				Blob:    pub.Marshal(),
 				Comment: k.Name})
 		}
+
+		// Check for a cert
+		k.LoadCertificate("")
+
+		if k.SSHCertificate != nil {
+			pub := *k.SSHCertificate
+			ids = append(ids, &agent.Key{
+				Format:  pub.Type(),
+				Blob:    pub.Marshal(),
+				Comment: k.Name})
+		}
 	}
 	return ids, nil
 }

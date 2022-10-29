@@ -54,6 +54,7 @@ type keyInfoView struct {
 	keyAlgorithm         *labelTextLine
 	keyContainer         *labelTextLine
 	keyFingerprint       *labelTextLine
+	sshCertificateSerial *labelTextLine
 	sshPublicKeyLocation *labelTextLine
 	loadError            *labelTextLine
 
@@ -75,6 +76,12 @@ func (kiv *keyInfoView) apply(ki *ncrypt.Key) {
 	} else {
 		kiv.keyFingerprint.hide()
 	}
+
+	if ki.SSHCertificate != nil {
+		kiv.sshCertificateSerial.show(ki.SSHCertificateSerial())
+	} else {
+		kiv.sshCertificateSerial.hide()
+	}
 	kiv.keyContainer.show(ki.ContainerName())
 	kiv.sshPublicKeyLocation.show(ki.SSHPublicKeyLocation)
 
@@ -85,8 +92,53 @@ func (kiv *keyInfoView) apply(ki *ncrypt.Key) {
 	}
 }
 
-func (kiv *keyInfoView) onCopyPublicKey() {
+func (kiv *keyInfoView) onCopyPublicKeyLocation() {
 	walk.Clipboard().SetText(kiv.currentKey.SSHPublicKeyLocation)
+}
+
+func (kiv *keyInfoView) onCopyPublicKey() {
+	walk.Clipboard().SetText(kiv.currentKey.SSHPublicKeyString())
+}
+
+func newKeyInfoView(parent walk.Container) (*keyInfoView, error) {
+	var err error
+	var disposables walk.Disposables
+	defer disposables.Treat()
+
+	iv := new(keyInfoView)
+
+	if iv.name, err = newLabelStatusLine(parent); err != nil {
+		return nil, err
+	}
+	disposables.Add(iv.name)
+
+	items := []labelTextLineItem{
+		{fmt.Sprintf("Key Type:"), &iv.keyType},
+		{fmt.Sprintf("Algorithm:"), &iv.keyAlgorithm},
+		{fmt.Sprintf("Container Name:"), &iv.keyContainer},
+		{fmt.Sprintf("Fingerprint:"), &iv.keyFingerprint},
+		{fmt.Sprintf("Certificate Serial:"), &iv.sshCertificateSerial},
+		{fmt.Sprintf("Public Key Location:"), &iv.sshPublicKeyLocation},
+		{fmt.Sprintf("Errors:"), &iv.loadError},
+	}
+	if iv.lines, err = createLabelTextLines(items, parent, &disposables); err != nil {
+		return nil, err
+	}
+
+	if iv.copyPublicKeyLocation, err = newPublicKeyActionsLine(parent); err != nil {
+		return nil, err
+	}
+	iv.copyPublicKeyLocation.copyLocationToClipboard.Clicked().Attach(iv.onCopyPublicKeyLocation)
+	iv.copyPublicKeyLocation.copyKeyToClipboard.Clicked().Attach(iv.onCopyPublicKey)
+	disposables.Add(iv.copyPublicKeyLocation)
+
+	iv.lines = append([]widgetsLine{iv.name}, append(iv.lines, iv.copyPublicKeyLocation)...)
+
+	layoutInGrid(iv, parent.Layout().(*walk.GridLayout))
+
+	disposables.Spare()
+
+	return iv, nil
 }
 
 type KeyView struct {
@@ -239,9 +291,9 @@ func newLabelStatusLine(parent walk.Container) (*labelStatusLine, error) {
 }
 
 type keyActionsButtonLine struct {
-	composite       *walk.Composite
-	copyToClipboard *walk.PushButton
-	addCert         *walk.PushButton
+	composite               *walk.Composite
+	copyLocationToClipboard *walk.PushButton
+	copyKeyToClipboard      *walk.PushButton
 }
 
 func (tal *keyActionsButtonLine) widgets() (walk.Widget, walk.Widget) {
@@ -252,7 +304,7 @@ func (tal *keyActionsButtonLine) Dispose() {
 	tal.composite.Dispose()
 }
 
-func newCopyPublicKeyButton(parent walk.Container) (*keyActionsButtonLine, error) {
+func newPublicKeyActionsLine(parent walk.Container) (*keyActionsButtonLine, error) {
 	var err error
 	var disposables walk.Disposables
 	defer disposables.Treat()
@@ -267,17 +319,17 @@ func newCopyPublicKeyButton(parent walk.Container) (*keyActionsButtonLine, error
 	layout.SetMargins(walk.Margins{0, 0, 0, 6})
 	tal.composite.SetLayout(layout)
 
-	if tal.copyToClipboard, err = walk.NewPushButton(tal.composite); err != nil {
+	if tal.copyLocationToClipboard, err = walk.NewPushButton(tal.composite); err != nil {
 		return nil, err
 	}
-	tal.copyToClipboard.SetText("Copy")
-	disposables.Add(tal.copyToClipboard)
+	tal.copyLocationToClipboard.SetText("Copy Path")
+	disposables.Add(tal.copyLocationToClipboard)
 
-	if tal.addCert, err = walk.NewPushButton(tal.composite); err != nil {
+	if tal.copyKeyToClipboard, err = walk.NewPushButton(tal.composite); err != nil {
 		return nil, err
 	}
-	tal.addCert.SetText("Add Cert")
-	disposables.Add(tal.addCert)
+	tal.copyKeyToClipboard.SetText("Copy Key")
+	disposables.Add(tal.copyKeyToClipboard)
 
 	walk.NewHSpacer(tal.composite)
 
@@ -340,45 +392,6 @@ func createLabelTextLines(items []labelTextLineItem, parent walk.Container, disp
 	disps.Spare()
 
 	return wls, nil
-}
-
-func newKeyInfoView(parent walk.Container) (*keyInfoView, error) {
-	var err error
-	var disposables walk.Disposables
-	defer disposables.Treat()
-
-	iv := new(keyInfoView)
-
-	if iv.name, err = newLabelStatusLine(parent); err != nil {
-		return nil, err
-	}
-	disposables.Add(iv.name)
-
-	items := []labelTextLineItem{
-		{fmt.Sprintf("Key Type:"), &iv.keyType},
-		{fmt.Sprintf("Algorithm:"), &iv.keyAlgorithm},
-		{fmt.Sprintf("Container Name:"), &iv.keyContainer},
-		{fmt.Sprintf("Fingerprint:"), &iv.keyFingerprint},
-		{fmt.Sprintf("Public Key Location:"), &iv.sshPublicKeyLocation},
-		{fmt.Sprintf("Errors:"), &iv.loadError},
-	}
-	if iv.lines, err = createLabelTextLines(items, parent, &disposables); err != nil {
-		return nil, err
-	}
-
-	if iv.copyPublicKeyLocation, err = newCopyPublicKeyButton(parent); err != nil {
-		return nil, err
-	}
-	iv.copyPublicKeyLocation.copyToClipboard.Clicked().Attach(iv.onCopyPublicKey)
-	disposables.Add(iv.copyPublicKeyLocation)
-
-	iv.lines = append([]widgetsLine{iv.name}, append(iv.lines, iv.copyPublicKeyLocation)...)
-
-	layoutInGrid(iv, parent.Layout().(*walk.GridLayout))
-
-	disposables.Spare()
-
-	return iv, nil
 }
 
 func layoutInGrid(view widgetsLinesView, layout *walk.GridLayout) {

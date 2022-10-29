@@ -12,6 +12,30 @@ import (
 
 type Pageant struct{}
 
+func (p *Pageant) Name() string {
+	return "Pageant/PuTTY"
+}
+
+func (p *Pageant) Status() string {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (p *Pageant) Stop() error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (p *Pageant) Start() error {
+	//TODO implement me
+	panic("implement me")
+}
+
+func (p *Pageant) Restart() error {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (*Pageant) Run(ctx context.Context, sshagent agent.Agent) error {
 	debug := true
 	if os.Getenv("WCSA_DEBUG") == "1" {

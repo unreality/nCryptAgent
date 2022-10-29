@@ -2,20 +2,14 @@ designed by Freepik from Flaticon - https://www.flaticon.com/free-icon/spy_56174
 
 TODO:
 * Listeners
-  * Cygwin
-  * WSL2
-  * WSL1
-  * Msysgw
-  * SecureCRT
+  * Xshell
 
 * Config Tab
   * Enable/Disable listeners
   * Configure pin timeout
 
 * Log Tab
-* Notifications
+* Notifications/Toast
 * About dialog
-
-* Certificates Support
-  * SHA1 hash instead of pk in view
-  * Add certificates via ssh agent
+  
+* FIDO Keys

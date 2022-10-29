@@ -1,6 +1,7 @@
 package ncrypt
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/rand"
@@ -14,6 +15,7 @@ import (
 	"ncryptagent/ncrypt/listeners"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -37,6 +39,7 @@ type Key struct {
 	Name                 string
 	Type                 string
 	SSHPublicKey         *ssh.PublicKey
+	SSHCertificate       *ssh.Certificate
 	SSHPublicKeyLocation string
 	Missing              bool
 
@@ -97,6 +100,53 @@ func (k *Key) SaveSSHPublicKey(publicKeysDir string) error {
 		}
 		_, err = f.Write([]byte(k.SSHPublicKeyString()))
 		f.Close()
+	}
+
+	return nil
+}
+
+func (k *Key) LoadCertificate(copyFromPath string) error {
+	if k.SSHPublicKeyLocation != "" && k.SSHPublicKey != nil {
+		publicKeysDir := filepath.Dir(k.SSHPublicKeyLocation)
+		fingerprint := ssh.FingerprintLegacyMD5(*k.SSHPublicKey)
+		filename := fmt.Sprintf("%s-cert.pub", strings.ReplaceAll(fingerprint, ":", ""))
+		certPath := filepath.Join(publicKeysDir, filename)
+
+		var certContents []byte
+		var err error
+
+		if copyFromPath != "" {
+			certContents, err = ioutil.ReadFile(copyFromPath)
+			if err != nil {
+				return err
+			}
+
+			f, err := os.OpenFile(certPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+			if err != nil {
+				return err
+			}
+			_, err = f.Write(certContents)
+			f.Close()
+		} else {
+			certContents, err = ioutil.ReadFile(certPath)
+			if err != nil {
+				return fmt.Errorf("could not open cert file")
+			}
+		}
+
+		pub, _, _, _, err := ssh.ParseAuthorizedKey(certContents)
+		if err != nil {
+			return err
+		}
+		if cert, ok := pub.(*ssh.Certificate); ok {
+			if bytes.Equal(cert.Key.Marshal(), (*k.SSHPublicKey).Marshal()) {
+				k.SSHCertificate = cert
+				return nil
+			} else {
+				return fmt.Errorf("certificate does not match selected key")
+			}
+
+		}
 	}
 
 	return nil
@@ -168,6 +218,13 @@ func (k *Key) SetHWND(hwnd uintptr) {
 	}
 }
 
+func (k *Key) SSHCertificateSerial() string {
+	if k.SSHCertificate != nil {
+		return strconv.FormatUint(k.SSHCertificate.Serial, 10)
+	}
+	return ""
+}
+
 type KeyManager struct {
 	Keys            map[string]*Key
 	providerHandles map[string]uintptr
@@ -228,6 +285,8 @@ func NewKeyManager(configPath string) (*KeyManager, error) {
 	l := []listeners.Listener{
 		new(listeners.NamedPipe),
 		new(listeners.Pageant),
+		new(listeners.Cygwin),
+		new(listeners.VSock),
 	}
 
 	var ctx context.Context
@@ -355,6 +414,7 @@ func (km *KeyManager) LoadKey(kc *KeyConfig) (*Key, error) {
 	}
 
 	km.Keys[kc.Name].SaveSSHPublicKey(km.publicKeysDir)
+	km.Keys[kc.Name].LoadCertificate("")
 
 	return km.Keys[kc.Name], nil
 }
@@ -467,6 +527,7 @@ func (km *KeyManager) CreateNewNCryptKey(keyName string, containerName string, p
 
 	k.SetHWND(uintptr(km.hwnd))
 	k.SaveSSHPublicKey(km.publicKeysDir)
+	k.LoadCertificate("")
 
 	err = km.SaveConfig()
 
@@ -548,10 +609,3 @@ func (km *KeyManager) DeleteKey(keyToDelete *Key, deleteFromKeystore bool) error
 	return km.SaveConfig()
 
 }
-
-// LoadKeys
-// CreateNewKey
-// CreateNewKeyWithExistingContainer
-// DestroyKey
-// SignMessage
-// Timeout pin

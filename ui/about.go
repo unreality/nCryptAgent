@@ -53,7 +53,7 @@ func runAboutDialog(owner walk.Form) error {
 	if logo, err := loadLogoIcon(128); err == nil {
 		iv.SetImage(logo)
 	}
-	iv.Accessibility().SetName(fmt.Sprintf("nCryptAgent logo image"))
+	iv.Accessibility().SetName(fmt.Sprintf("nCryptAgent image"))
 
 	wgLbl, err := walk.NewTextLabel(showingAboutDialog)
 	if err != nil {
@@ -62,7 +62,7 @@ func runAboutDialog(owner walk.Form) error {
 	wgFont, _ := walk.NewFont("Segoe UI", 16, walk.FontBold)
 	wgLbl.SetFont(wgFont)
 	wgLbl.SetTextAlignment(walk.AlignHCenterVNear)
-	wgLbl.SetText("WireGuard")
+	wgLbl.SetText("nCryptAgent")
 
 	detailsLbl, err := walk.NewTextLabel(showingAboutDialog)
 	if err != nil {
@@ -70,7 +70,7 @@ func runAboutDialog(owner walk.Form) error {
 	}
 	detailsLbl.SetTextAlignment(walk.AlignHCenterVNear)
 	detailsLbl.SetText(
-		fmt.Sprintf("An advanced SSH Agent for Windows\n\nWith ♥ from the nCryptAgent Contributors\n\nLogo designed by Freepik from Flaticon\n"),
+		fmt.Sprintf("An SSH Agent for hardware backed keys on Windows\n\nWith ♥ from the nCryptAgent Contributors\n\nIcon designed by 'Icon Home' on Flaticon\n"),
 	)
 
 	copyrightLbl, err := walk.NewTextLabel(showingAboutDialog)

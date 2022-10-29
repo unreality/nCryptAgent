@@ -58,7 +58,42 @@ func (kma *KeyManagerAgent) SignWithFlags(key ssh.PublicKey, data []byte, flags 
 		pub := *k.SSHPublicKey
 		if bytes.Equal(pub.Marshal(), key.Marshal()) {
 			if flags == 0 {
-				return k.SignSSH(data)
+				sig, err := k.SignSSH(data)
+
+				if err != nil {
+					kma.km.Notify(NotifyMsg{
+						Title:   "SSH Sign Failed",
+						Message: fmt.Sprintf("Failed to sign message with key \"%s\"", k.Name),
+						Icon: struct {
+							DLL   string
+							Index int32
+							Size  int
+						}{
+							DLL:   "imageres",
+							Index: 100,
+							Size:  32,
+						},
+					})
+
+					return nil, err
+				}
+
+				kma.km.Notify(NotifyMsg{
+					Title:   "SSH Sign Successful",
+					Message: fmt.Sprintf("Signed message with key \"%s\"", k.Name),
+					Icon: struct {
+						DLL   string
+						Index int32
+						Size  int
+					}{
+						DLL:   "imageres",
+						Index: 101,
+						Size:  32,
+					},
+				})
+
+				return sig, err
+
 			} else {
 				var algorithm string
 

@@ -133,7 +133,15 @@ func (cp *ConfPage) onSaveConfigClicked() {
 
 func (cp *ConfPage) onTabSelected() {
 	if cp.confPageView.Visible() {
-		cp.confPageView.cygwinConfView.SocketLocation.SetText(cp.keyManager.CygwinSocketLocation())
+		cp.confPageView.vsockConfView.ShellScript.SetText(
+			fmt.Sprintf(
+				"export SSH_AUTH_SOCK=/tmp/ssh-agent-hv.sock\r\n" +
+					"ss -lnx | grep -q $SSH_AUTH_SOCK\r\nif [ $? -ne 0 ]; then\r\n" +
+					"  rm -f $SSH_AUTH_SOCK\r\n" +
+					"  (setsid -f nohup socat UNIX-LISTEN:$SSH_AUTH_SOCK,fork VSOCK-CONNECT:2:0x22223333 >/dev/null 2>&1)\r\n" +
+					"fi\r\n"))
+		cp.confPageView.cygwinConfView.ShellScript.SetText(fmt.Sprintf("export SSH_AUTH_SOCK=\"%s\"", cp.keyManager.CygwinSocketLocation()))
+
 		cp.confPageView.pageantConfView.ListenerEnabled.SetChecked(cp.keyManager.GetListenerEnabled(listeners.TYPE_PAGEANT))
 		cp.confPageView.namedPipeConfView.ListenerEnabled.SetChecked(cp.keyManager.GetListenerEnabled(listeners.TYPE_NAMED_PIPE))
 		cp.confPageView.vsockConfView.ListenerEnabled.SetChecked(cp.keyManager.GetListenerEnabled(listeners.TYPE_VSOCK))

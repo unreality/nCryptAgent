@@ -9,5 +9,4 @@
 
 LANGUAGE LANG_NEUTRAL, SUBLANG_NEUTRAL
 CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST resources/manifest.xml
-$tray.ico ICON resources/spy.ico
-dot-gray.ico ICON resources/dot-gray.ico
+8 ICON resources/digitalkey.ico

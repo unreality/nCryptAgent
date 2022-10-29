@@ -5,6 +5,7 @@ import (
 	"github.com/lxn/walk"
 	"github.com/lxn/win"
 	"ncryptagent/ncrypt"
+	"strings"
 )
 
 type widgetsLine interface {
@@ -100,6 +101,15 @@ func (kiv *keyInfoView) onCopyPublicKey() {
 	walk.Clipboard().SetText(kiv.currentKey.SSHPublicKeyString())
 }
 
+func (kiv *keyInfoView) onCopyPublicKeyWSLLocation() {
+	wsl2Path := kiv.currentKey.SSHPublicKeyLocation
+	wsl2Path = strings.ReplaceAll(wsl2Path, ":", "")
+	wsl2Path = strings.ReplaceAll(wsl2Path, "\\", "/")
+	wsl2Path = "/mnt/" + strings.ToLower(wsl2Path[0:1]) + wsl2Path[1:]
+
+	walk.Clipboard().SetText(wsl2Path)
+}
+
 func newKeyInfoView(parent walk.Container) (*keyInfoView, error) {
 	var err error
 	var disposables walk.Disposables
@@ -130,6 +140,7 @@ func newKeyInfoView(parent walk.Container) (*keyInfoView, error) {
 	}
 	iv.copyPublicKeyLocation.copyLocationToClipboard.Clicked().Attach(iv.onCopyPublicKeyLocation)
 	iv.copyPublicKeyLocation.copyKeyToClipboard.Clicked().Attach(iv.onCopyPublicKey)
+	iv.copyPublicKeyLocation.copyWSLLocationToClipboard.Clicked().Attach(iv.onCopyPublicKeyWSLLocation)
 	disposables.Add(iv.copyPublicKeyLocation)
 
 	iv.lines = append([]widgetsLine{iv.name}, append(iv.lines, iv.copyPublicKeyLocation)...)
@@ -290,9 +301,10 @@ func newLabelStatusLine(parent walk.Container) (*labelStatusLine, error) {
 }
 
 type keyActionsButtonLine struct {
-	composite               *walk.Composite
-	copyLocationToClipboard *walk.PushButton
-	copyKeyToClipboard      *walk.PushButton
+	composite                  *walk.Composite
+	copyLocationToClipboard    *walk.PushButton
+	copyWSLLocationToClipboard *walk.PushButton
+	copyKeyToClipboard         *walk.PushButton
 }
 
 func (tal *keyActionsButtonLine) widgets() (walk.Widget, walk.Widget) {
@@ -323,6 +335,12 @@ func newPublicKeyActionsLine(parent walk.Container) (*keyActionsButtonLine, erro
 	}
 	tal.copyLocationToClipboard.SetText("Copy Path")
 	disposables.Add(tal.copyLocationToClipboard)
+
+	if tal.copyWSLLocationToClipboard, err = walk.NewPushButton(tal.composite); err != nil {
+		return nil, err
+	}
+	tal.copyWSLLocationToClipboard.SetText("Copy WSL Path")
+	disposables.Add(tal.copyWSLLocationToClipboard)
 
 	if tal.copyKeyToClipboard, err = walk.NewPushButton(tal.composite); err != nil {
 		return nil, err

@@ -36,7 +36,7 @@ func loadLogoIcon(size int) (icon *walk.Icon, err error) {
 	if icon != nil {
 		return
 	}
-	icon, err = walk.NewIconFromResourceWithSize("$tray.ico", walk.Size{size, size})
+	icon, err = walk.NewIconFromResourceIdWithSize(8, walk.Size{size, size})
 	if err == nil {
 		cachedLogoIconsForWidth[size] = icon
 	}

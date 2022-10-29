@@ -74,7 +74,7 @@ func NewPageantConfView(parent walk.Container) (*PageantConfView, error) {
 	}
 	disposables.Add(cv)
 
-	cv.SetTitle("Pageant/PuTTY:")
+	cv.SetTitle("Pageant (PuTTY):")
 
 	layout := cv.Layout().(*walk.GridLayout)
 	layout.SetSpacing(6)
@@ -160,6 +160,7 @@ type VSockConfView struct {
 	*walk.GroupBox
 
 	ListenerEnabled *walk.CheckBox
+	ShellScript     *walk.TextEdit
 }
 
 func NewVSockConfView(parent walk.Container) (*VSockConfView, error) {
@@ -196,6 +197,25 @@ func NewVSockConfView(parent walk.Container) (*VSockConfView, error) {
 	layout.SetRange(cv.ListenerEnabled, walk.Rectangle{1, 0, 1, 1})
 	cv.ListenerEnabled.SetChecked(true)
 
+	// Shell script
+	shellScriptLabel, err := walk.NewTextLabel(cv)
+	if err != nil {
+		return nil, err
+	}
+	layout.SetRange(shellScriptLabel, walk.Rectangle{0, 1, 1, 1})
+	shellScriptLabel.SetTextAlignment(walk.AlignHNearVNear)
+	shellScriptLabel.SetText(fmt.Sprintf("&Shell Script:"))
+
+	if cv.ShellScript, err = walk.NewTextEdit(cv); err != nil {
+		return nil, err
+	}
+	layout.SetRange(cv.ShellScript, walk.Rectangle{1, 1, 1, 1})
+	cv.ShellScript.SetAlignment(walk.AlignHNearVNear)
+	cv.ShellScript.SetText("")
+	cv.ShellScript.SetReadOnly(true)
+	cv.ShellScript.SetMinMaxSizePixels(walk.Size{Width: 700, Height: 300}, walk.Size{})
+	cv.ShellScript.SetToolTipText("Place in .bashrc, .profile, or equivalent")
+
 	if err := walk.InitWrapperWindow(cv); err != nil {
 		return nil, err
 	}
@@ -210,7 +230,7 @@ type CygwinConfView struct {
 	*walk.GroupBox
 
 	ListenerEnabled *walk.CheckBox
-	SocketLocation  *walk.TextEdit
+	ShellScript     *walk.TextEdit
 }
 
 func NewCygwinConfView(parent walk.Container) (*CygwinConfView, error) {
@@ -248,22 +268,24 @@ func NewCygwinConfView(parent walk.Container) (*CygwinConfView, error) {
 	cv.ListenerEnabled.SetAlignment(walk.AlignHNearVCenter)
 	cv.ListenerEnabled.SetChecked(true)
 
-	// Socket Location
-	socketLocationLabel, err := walk.NewTextLabel(cv)
+	// Shell script
+	shellScriptLabel, err := walk.NewTextLabel(cv)
 	if err != nil {
 		return nil, err
 	}
-	layout.SetRange(socketLocationLabel, walk.Rectangle{0, 1, 1, 1})
-	socketLocationLabel.SetTextAlignment(walk.AlignHNearVCenter)
-	socketLocationLabel.SetText(fmt.Sprintf("&Socket Location:"))
+	layout.SetRange(shellScriptLabel, walk.Rectangle{0, 1, 1, 1})
+	shellScriptLabel.SetTextAlignment(walk.AlignHNearVNear)
+	shellScriptLabel.SetText(fmt.Sprintf("&Shell Script:"))
 
-	if cv.SocketLocation, err = walk.NewTextEdit(cv); err != nil {
+	if cv.ShellScript, err = walk.NewTextEdit(cv); err != nil {
 		return nil, err
 	}
-	layout.SetRange(cv.SocketLocation, walk.Rectangle{1, 1, 1, 1})
-	cv.SocketLocation.SetAlignment(walk.AlignHNearVCenter)
-	cv.SocketLocation.SetText("")
-	cv.SocketLocation.SetReadOnly(true)
+	layout.SetRange(cv.ShellScript, walk.Rectangle{1, 1, 1, 1})
+	cv.ShellScript.SetAlignment(walk.AlignHNearVNear)
+	cv.ShellScript.SetText("")
+	cv.ShellScript.SetReadOnly(true)
+	cv.ShellScript.SetMinMaxSizePixels(walk.Size{Width: 700, Height: 100}, walk.Size{})
+	cv.ShellScript.SetToolTipText("Place in .bashrc, .profile, or equivalent")
 
 	if err := walk.InitWrapperWindow(cv); err != nil {
 		return nil, err

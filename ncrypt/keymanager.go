@@ -280,8 +280,12 @@ func NewKeyManager(configPath string) (*KeyManager, error) {
 		fmt.Printf("Using default config\n")
 		// create a default config
 		kmc = KeyManagerConfig{
-			Keys:       nil,
-			PinTimeout: 0,
+			Keys:             nil,
+			PinTimeout:       5,
+			CygwinEnabled:    true,
+			PageantEnabled:   true,
+			VSockEnabled:     true,
+			NamedPipeEnabled: true,
 		}
 	} else {
 		fmt.Printf("Loading %s\n", configPath)

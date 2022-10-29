@@ -46,9 +46,9 @@ If you have already generated a key on your smart card you can import that key b
 
 ## OpenSSH Certificates
 
-Since `ssh-add` does not support adding certificates without a private key, nCryptAgent checks for a matching certificate in its PublicKeys directory. If you have an OpenSSH certificate you wish to use, you can either use the `Add Cert` button to attach a certificate to the currently selected key, or alternatively place the certificate in the `PublicKeys` directory with the correct name. The name format for certificates is `<MatchingCertificateFingerprint>-cert.pub`. 
+Since `ssh-add` does [not support adding certificates without a private key](https://bugzilla.mindrot.org/show_bug.cgi?id=3212), nCryptAgent checks for a matching certificate in its `PublicKeys` directory (`%AppData%\nCryptAgent\PublicKeys`). If you have an OpenSSH certificate you wish to use, you can either use the `Add Cert` button to attach a certificate to the currently selected key, or alternatively place the certificate in the `PublicKeys` directory with the correct name. The name format for certificates is `<MatchingCertificateFingerprint>-cert.pub`. 
 
-For example, if an nCrypt key has a location of `C:\Users\myuser\AppData\Roaming\nCryptAgent\PublicKeys\deadbeefd530ca2d01b3b74c8641fe29.pub` the matching certificate will be named `C:\Users\myuser\AppData\Roaming\nCryptAgent\PublicKeys\deadbeefd530ca2d01b3b74c8641fe29-cert.pub`. 
+For example, if an nCrypt key has a location of `%AppData%\nCryptAgent\PublicKeys\deadbeefd530ca2d01b3b74c8641fe29.pub` the matching certificate will be named `%AppData%\nCryptAgent\PublicKeys\deadbeefd530ca2d01b3b74c8641fe29-cert.pub`. 
 
 ## Creating a TPM-backed Smart Card
 
@@ -61,6 +61,3 @@ You can delete your TPM smart card with:
 * `tpmvscmgr.exe destroy /instance <DeviceID>` where `<DeviceID>` is the id of the tpm smart card. If you only have one tpm smart card, this will be `ROOT\SMARTCARDREADER\0000`
 * To get a list of `DeviceIDs` run `wmic path win32_PnPEntity where "DeviceID like '%smartcardreader%'" get DeviceID,Name,Status`
 
-## Attribution
-
-* Icon designed by "Icon home" from Flaticon - https://www.flaticon.com/free-icon/digital-key_8305421

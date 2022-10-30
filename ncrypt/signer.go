@@ -4,7 +4,6 @@ import (
 	"crypto"
 	"crypto/rsa"
 	"fmt"
-	"github.com/lxn/win"
 	"golang.org/x/crypto/cryptobyte"
 	"golang.org/x/crypto/cryptobyte/asn1"
 	"io"
@@ -58,25 +57,6 @@ func (s *Signer) Sign(_ io.Reader, digest []byte, opts crypto.SignerOpts) ([]byt
 			fmt.Printf("%v", err)
 		}
 
-		curWnd := win.GetForegroundWindow()
-		myID := win.GetCurrentThreadId()
-		curID := win.GetWindowThreadProcessId(curWnd, nil)
-		win.AttachThreadInput(int32(curID), int32(myID), true)
-		win.ShowWindow(win.HWND(s.hwnd), win.SW_NORMAL)
-		win.SetForegroundWindow(win.HWND(s.hwnd))
-		win.SetFocus(win.HWND(s.hwnd))
-		win.SetActiveWindow(win.HWND(s.hwnd))
-		win.AttachThreadInput(int32(curID), int32(myID), false)
-
-		defer func() {
-			win.ShowWindow(win.HWND(s.hwnd), win.SW_HIDE)
-			win.AttachThreadInput(int32(myID), int32(curID), true)
-			win.ShowWindow(curWnd, win.SW_NORMAL)
-			win.SetForegroundWindow(curWnd)
-			win.SetFocus(curWnd)
-			win.SetActiveWindow(curWnd)
-			win.AttachThreadInput(int32(myID), int32(curID), false)
-		}()
 	}
 
 	switch s.algorithmGroup {

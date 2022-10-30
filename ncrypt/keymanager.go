@@ -4,20 +4,29 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/elliptic"
 	"crypto/rand"
+	"encoding/asn1"
+	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/google/uuid"
 	"github.com/lxn/win"
 	"golang.org/x/crypto/ssh"
 	"io/ioutil"
+	"math/big"
 	"ncryptagent/ncrypt/listeners"
+	"ncryptagent/webauthn"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"unsafe"
 )
 
 type NotifyMsg struct {
@@ -30,12 +39,32 @@ type NotifyMsg struct {
 	}
 }
 
+type sshPrivateKeySKECDSA struct {
+	Type        string
+	ID          string
+	Key         []byte
+	Application string
+	Flags       byte
+	KeyHandle   []byte
+	Reserved    string
+}
+
+type sshPrivateKeySKED25519 struct {
+	Type        string
+	Key         []byte
+	Application string
+	Flags       byte
+	KeyHandle   []byte
+	Reserved    string
+}
+
 type KeyConfig struct {
 	Name          string `json:"name"`
 	Type          string `json:"type"`
 	ContainerName string `json:"containerName"`
 	ProviderName  string `json:"providerName,omitempty"`
 	SSHPublicKey  string `json:"sshPublicKey,omitempty"`
+	SKPrivateHalf string `json:"skPrivateHalf,omitempty"`
 	Algorithm     string `json:"algorithm,omitempty"`
 	Length        int    `json:"length,omitempty"`
 }
@@ -65,6 +94,37 @@ type Key struct {
 	config *KeyConfig
 	handle uintptr
 	signer *crypto.Signer
+	hwnd   uintptr
+
+	focusData struct {
+		victimHWND win.HWND
+		victimID   uint32
+		myID       uint32
+	}
+}
+
+func (k *Key) TakeFocus() {
+	hwnd := win.HWND(k.hwnd)
+
+	k.focusData.victimHWND = win.GetForegroundWindow()
+	k.focusData.myID = win.GetCurrentThreadId()
+	k.focusData.victimID = win.GetWindowThreadProcessId(k.focusData.victimHWND, nil)
+	win.AttachThreadInput(int32(k.focusData.victimID), int32(k.focusData.myID), true)
+	win.ShowWindow(hwnd, win.SW_NORMAL)
+	win.SetForegroundWindow(hwnd)
+	win.SetFocus(hwnd)
+	win.SetActiveWindow(hwnd)
+	win.AttachThreadInput(int32(k.focusData.victimID), int32(k.focusData.myID), false)
+}
+
+func (k *Key) ReturnFocus() {
+	win.ShowWindow(win.HWND(k.hwnd), win.SW_HIDE)
+	win.AttachThreadInput(int32(k.focusData.myID), int32(k.focusData.victimID), true)
+	win.ShowWindow(k.focusData.victimHWND, win.SW_NORMAL)
+	win.SetForegroundWindow(k.focusData.victimHWND)
+	win.SetFocus(k.focusData.victimHWND)
+	win.SetActiveWindow(k.focusData.victimHWND)
+	win.AttachThreadInput(int32(k.focusData.myID), int32(k.focusData.victimID), false)
 }
 
 func (k *Key) AlgorithmReadable() string {
@@ -102,11 +162,10 @@ func (k *Key) SSHPublicKeyType() string {
 
 func (k *Key) SaveSSHPublicKey(publicKeysDir string) error {
 	if k.SSHPublicKey != nil {
-
 		fingerprint := ssh.FingerprintLegacyMD5(*k.SSHPublicKey)
 		filename := fmt.Sprintf("%s.pub", strings.ReplaceAll(fingerprint, ":", ""))
 		k.SSHPublicKeyLocation = filepath.Join(publicKeysDir, filename)
-		fmt.Println(k.SSHPublicKeyLocation)
+		fmt.Printf("Saving public key to %s\n", k.SSHPublicKeyLocation)
 
 		f, err := os.OpenFile(k.SSHPublicKeyLocation, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 		if err != nil {
@@ -182,7 +241,10 @@ func (k *Key) Close() {
 }
 
 func (k *Key) SignSSH(b []byte) (*ssh.Signature, error) {
-	if k.signer != nil {
+	k.TakeFocus()
+	defer k.ReturnFocus()
+
+	if k.Type == "NCRYPT" && k.signer != nil {
 		sshSigner, err := ssh.NewSignerFromSigner(*k.signer)
 
 		if err != nil {
@@ -195,13 +257,18 @@ func (k *Key) SignSSH(b []byte) (*ssh.Signature, error) {
 		}
 
 		return signature, err
+	} else if k.Type == "WEBAUTHN" {
+		return k.signWebAuthN(b)
 	}
 
 	return nil, fmt.Errorf("invalid signer")
 }
 
 func (k *Key) SignWithAlgorithmSSH(b []byte, algorithm string) (*ssh.Signature, error) {
-	if k.signer != nil {
+	k.TakeFocus()
+	defer k.ReturnFocus()
+
+	if k.Type == "NCRYPT" && k.signer != nil {
 		sshSigner, err := ssh.NewSignerFromSigner(*k.signer)
 
 		if err != nil {
@@ -219,21 +286,134 @@ func (k *Key) SignWithAlgorithmSSH(b []byte, algorithm string) (*ssh.Signature, 
 		} else {
 			return nil, fmt.Errorf("invalid signer type %T", algorithmSigner)
 		}
+	} else if k.Type == "WEBAUTHN" {
+		fmt.Printf("Webauthn Sign with algorithm %s\n", algorithm)
+		return k.signWebAuthN(b)
 	}
 
 	return nil, fmt.Errorf("invalid signer")
 }
 
+func (k *Key) signWebAuthN(signData []byte) (*ssh.Signature, error) {
+
+	privBytes, err := base64.StdEncoding.DecodeString(k.config.SKPrivateHalf)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding base64 private half: %w", err)
+	}
+
+	var application string
+	var keyHandle []byte
+
+	if (*k.SSHPublicKey).Type() == "sk-ecdsa-sha2-nistp256@openssh.com" || (*k.SSHPublicKey).Type() == "sk-ecdsa-sha2-nistp256-cert-v01@openssh.com" {
+		priv := sshPrivateKeySKECDSA{}
+		err = ssh.Unmarshal(privBytes, &priv)
+
+		if err != nil {
+			return nil, fmt.Errorf("error unmarshalling private half: %w", err)
+		}
+
+		application = priv.Application
+		keyHandle = priv.KeyHandle
+	} else if (*k.SSHPublicKey).Type() == "sk-ssh-ed25519@openssh.com" || (*k.SSHPublicKey).Type() == "sk-ssh-ed25519-cert-v01@openssh.com" {
+		priv := sshPrivateKeySKED25519{}
+		err = ssh.Unmarshal(privBytes, &priv)
+
+		if err != nil {
+			return nil, fmt.Errorf("error unmarshalling private half: %w", err)
+		}
+
+		application = priv.Application
+		keyHandle = priv.KeyHandle
+	}
+
+	clientData := webauthn.CLIENT_DATA{
+		Version:              webauthn.CLIENT_DATA_CURRENT_VERSION,
+		ClientDataJSONLength: uint32(len(signData)),
+		ClientDataJSON:       uintptr(unsafe.Pointer(&signData[0])),
+		HashAlgId:            wide(webauthn.HASH_ALGORITHM_SHA_256),
+	}
+
+	credentials := []webauthn.CREDENTIAL{
+		{
+			Version:        webauthn.CREDENTIAL_CURRENT_VERSION,
+			IdLen:          uint32(len(keyHandle)),
+			Id:             uintptr(unsafe.Pointer(&keyHandle[0])),
+			CredentialType: wide(webauthn.CREDENTIAL_TYPE_PUBLIC_KEY),
+		},
+	}
+
+	assertionOptions := webauthn.AUTHENTICATOR_GET_ASSERTION_OPTIONS{
+		Version: webauthn.AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS_CURRENT_VERSION,
+		CredentialList: webauthn.CREDENTIALS{
+			Count:       1,
+			Credentials: uintptr(unsafe.Pointer(&credentials[0])),
+		},
+		UserVerificationRequirement: webauthn.USER_VERIFICATION_REQUIREMENT_ANY,
+	}
+
+	assertion, err := webauthn.AuthenticatorGetAssertion(k.hwnd, application, clientData, assertionOptions)
+
+	if err != nil {
+		return nil, fmt.Errorf("AuthenticatorGetAssertion failed: %w", err)
+	}
+
+	defer webauthn.FreeAssertion(assertion)
+
+	authDataBytes := webauthn.UintptrToBytes(assertion.AuthenticatorData, assertion.AuthenticatorDataLen)
+	assertionSignatureBytes := webauthn.UintptrToBytes(assertion.Signature, assertion.SignatureLen)
+
+	authData := webauthn.AuthenticatorData{}
+	reader := bytes.NewReader(authDataBytes)
+	err = binary.Read(reader, binary.BigEndian, &authData.RPIDHash)
+	err = binary.Read(reader, binary.BigEndian, &authData.Flags)
+	err = binary.Read(reader, binary.BigEndian, &authData.Counter)
+
+	additionalData := struct {
+		Flags   byte
+		Counter uint32
+	}{
+		Flags:   authData.Flags,
+		Counter: authData.Counter,
+	}
+
+	var signatureBytes []byte
+
+	if (*k.SSHPublicKey).Type() == "sk-ecdsa-sha2-nistp256@openssh.com" || (*k.SSHPublicKey).Type() == "sk-ecdsa-sha2-nistp256-cert-v01@openssh.com" {
+		signatureParsed := struct {
+			R *big.Int
+			S *big.Int
+		}{}
+
+		_, err = asn1.Unmarshal(assertionSignatureBytes, &signatureParsed)
+		if err != nil {
+			return nil, fmt.Errorf("asn1.Unmarshal of ECDSA signature failed: %w", err)
+		}
+
+		signatureBytes = ssh.Marshal(signatureParsed)
+	} else {
+		signatureBytes = assertionSignatureBytes
+	}
+
+	sig := ssh.Signature{
+		Format: (*k.SSHPublicKey).Type(),
+		Blob:   signatureBytes,
+		Rest:   ssh.Marshal(additionalData),
+	}
+
+	return &sig, nil
+}
+
 func (k *Key) SetHWND(hwnd uintptr) {
-	if k.signer != nil {
+	if k.Type == "NCRYPT" && k.signer != nil {
 		if ncryptSigner, ok := (*k.signer).(*Signer); ok {
 			ncryptSigner.SetHwnd(hwnd)
 		}
 	}
+	k.hwnd = hwnd
 }
 
 func (k *Key) SetTimeout(timeout int) {
-	if k.signer != nil {
+	if k.Type == "NCRYPT" && k.signer != nil {
 		if ncryptSigner, ok := (*k.signer).(*Signer); ok {
 			ncryptSigner.SetPINTimeout(timeout)
 		}
@@ -345,16 +525,23 @@ func NewKeyManager(configPath string) (*KeyManager, error) {
 
 	for _, k := range kmc.Keys {
 		fmt.Printf("Loading key %s\n", k.Name)
-		if k.ProviderName == "" {
-			k.ProviderName = ProviderMSSC
+		var err error
+
+		if k.Type == "NCRYPT" {
+			if k.ProviderName == "" {
+				k.ProviderName = ProviderMSSC
+			}
+
+			_, err = km.getProviderHandle(k.ProviderName)
+			if err != nil {
+				return nil, fmt.Errorf("unable to open provider %s for %s: %w", k.ProviderName, k.Name, err)
+			}
+
+			_, err = km.LoadNCryptKey(k)
+		} else {
+			_, err = km.LoadWebAuthNKey(k)
 		}
 
-		_, err := km.getProviderHandle(k.ProviderName)
-		if err != nil {
-			return nil, fmt.Errorf("unable to open provider %s for %s: %w", k.ProviderName, k.Name, err)
-		}
-
-		_, err = km.LoadKey(k)
 		if err != nil {
 			km.Keys[k.Name] = &Key{
 				Name:                 k.Name,
@@ -409,7 +596,7 @@ func (km *KeyManager) EnsureListenerIs(listener listeners.Listener, enabled bool
 	}
 }
 
-func (km *KeyManager) LoadKey(kc *KeyConfig) (*Key, error) {
+func (km *KeyManager) LoadNCryptKey(kc *KeyConfig) (*Key, error) {
 	providerHandle, err := km.getProviderHandle(kc.ProviderName)
 	if err != nil {
 		return nil, err
@@ -598,6 +785,242 @@ func (km *KeyManager) CreateNewNCryptKey(keyName string, containerName string, p
 	return &k, err
 }
 
+func (km *KeyManager) CreateNewWebAuthNKey(keyName string, application string, coseAlgorithm int64, coseHash string, hwnd uintptr) (*Key, error) {
+
+	if _, keyNameExists := km.Keys[keyName]; keyNameExists {
+		return nil, fmt.Errorf("key named %s already exists", keyName)
+	}
+
+	if application == "" {
+		application = "ssh:"
+	}
+
+	var userName string
+	currentUser, err := user.Current()
+	if err != nil {
+		userName = ""
+	} else {
+		userName = currentUser.Username
+	}
+
+	userId := []byte("(null)")
+
+	entity_info := webauthn.RP_ENTITY_INFORMATION{
+		Version: webauthn.RP_ENTITY_INFORMATION_CURRENT_VERSION,
+		Id:      wide(application),
+		Name:    wide("nCrypt Agent"),
+		Icon:    nil,
+	}
+
+	user_entity_info := webauthn.USER_ENTITY_INFORMATION{
+		Version:     webauthn.USER_ENTITY_INFORMATION_CURRENT_VERSION,
+		IdLen:       uint32(len(userId)),
+		Id:          uintptr(unsafe.Pointer(&userId[0])),
+		Name:        wide(userName),
+		Icon:        nil,
+		DisplayName: wide(userName),
+	}
+
+	cose_parameter := []webauthn.COSE_CREDENTIAL_PARAMETER{
+		{
+			Version:        webauthn.COSE_CREDENTIAL_PARAMETER_CURRENT_VERSION,
+			CredentialType: wide(webauthn.CREDENTIAL_TYPE_PUBLIC_KEY),
+			Alg:            coseAlgorithm,
+		},
+	}
+
+	cose_parameters := webauthn.COSE_CREDENTIAL_PARAMETERS{
+		Count:                uint32(len(cose_parameter)),
+		CredentialParameters: uintptr(unsafe.Pointer(&cose_parameter[0])),
+	}
+
+	ssh_challenge_data := []byte("{}") // should we make a random data?
+
+	client_data := webauthn.CLIENT_DATA{
+		Version:              webauthn.CLIENT_DATA_CURRENT_VERSION,
+		ClientDataJSONLength: uint32(len(ssh_challenge_data)),
+		ClientDataJSON:       uintptr(unsafe.Pointer(&ssh_challenge_data[0])),
+		HashAlgId:            wide(coseHash),
+	}
+
+	credential_options := webauthn.AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS_V3{
+		Version:                     webauthn.AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS_CURRENT_VERSION,
+		UserVerificationRequirement: webauthn.USER_VERIFICATION_REQUIREMENT_ANY,
+	}
+
+	var useWnd uintptr
+	if hwnd != 0 {
+		useWnd = hwnd
+	} else if km.hwnd != 0 {
+		useWnd = uintptr(km.hwnd)
+	} else {
+		useWnd = uintptr(win.GetForegroundWindow())
+	}
+
+	credentialAttestation, err := webauthn.AuthenticatorMakeCredential(useWnd, entity_info, user_entity_info, cose_parameters, client_data, credential_options)
+
+	if err != nil {
+		return nil, fmt.Errorf("AuthenticatorMakeCredential failed: %w", err)
+	}
+
+	defer webauthn.FreeCredentialAttestation(credentialAttestation)
+
+	attestationObjectBytes := webauthn.UintptrToBytes(credentialAttestation.AttestationObject, credentialAttestation.AttestationObjectLen)
+	attestationObject := webauthn.AttestationObject{}
+	err = cbor.Unmarshal(attestationObjectBytes, &attestationObject)
+
+	if err != nil {
+		return nil, fmt.Errorf("cbor.Unmarshal failed to parse attestationObject: %w", err)
+	}
+
+	reader := bytes.NewReader(attestationObject.AuthData)
+	authData := webauthn.AuthenticatorData{}
+
+	// Format of attestation object from https://www.w3.org/TR/webauthn/#attestation-object
+	// Read Authenticator Data Header
+	err = binary.Read(reader, binary.BigEndian, &authData.RPIDHash)
+	err = binary.Read(reader, binary.BigEndian, &authData.Flags)
+	err = binary.Read(reader, binary.BigEndian, &authData.Counter)
+
+	//TODO: Look at authData.Flags to see if there is credential data or extensions
+
+	// Read the attested credential data
+	authData.AttestedCredentialData = &webauthn.AttestedCredentialData{}
+	err = binary.Read(reader, binary.BigEndian, &authData.AttestedCredentialData.AAGUID)
+	err = binary.Read(reader, binary.BigEndian, &authData.AttestedCredentialData.CredentialIDLen)
+	authData.AttestedCredentialData.CredentialID = make([]byte, authData.AttestedCredentialData.CredentialIDLen)
+	err = binary.Read(reader, binary.BigEndian, &authData.AttestedCredentialData.CredentialID)
+
+	credentialPublicKey := make([]byte, reader.Len()) // Read the rest of the AttestedCredentialData in as the public key
+	//TODO: check for CBOR extensions?!
+	_, err = reader.Read(credentialPublicKey)
+
+	coseKey := webauthn.COSEKey{}
+	err = cbor.Unmarshal(credentialPublicKey, &coseKey)
+	if err != nil {
+		return nil, fmt.Errorf("cbor.Unmarshal failed to parse credentialPublicKey: %w", err)
+	}
+
+	var sshPrivBytes []byte
+	var sshPubBytes []byte
+
+	if coseKey.Kty == webauthn.COSE_KEY_TYPE_EC2 {
+		if coseKey.Alg == webauthn.COSE_ALGORITHM_ECDSA_P256_WITH_SHA256 {
+			x := new(big.Int)
+			x.SetBytes(coseKey.X[:])
+			y := new(big.Int)
+			y.SetBytes(coseKey.Y[:])
+
+			publicKeyBytes := elliptic.Marshal(elliptic.P256(), x, y)
+
+			keyType := "sk-ecdsa-sha2-nistp256@openssh.com"
+			curveName := "nistp256"
+
+			sshPub := struct {
+				Type        string
+				ID          string
+				Key         []byte
+				Application string
+			}{
+				Type:        keyType,
+				ID:          curveName,
+				Key:         publicKeyBytes,
+				Application: application,
+			}
+
+			sshPriv := sshPrivateKeySKECDSA{
+				Type:        keyType,
+				ID:          curveName,
+				Key:         publicKeyBytes,
+				Application: application,
+				Flags:       authData.Flags,
+				KeyHandle:   authData.AttestedCredentialData.CredentialID,
+				Reserved:    "",
+			}
+
+			sshPubBytes = ssh.Marshal(&sshPub)
+			sshPrivBytes = ssh.Marshal(&sshPriv)
+		} else {
+			return nil, fmt.Errorf("invalid algorithm cose identifier: %d", coseKey.Alg)
+		}
+	} else if coseKey.Kty == webauthn.COSE_KEY_TYPE_OKP {
+		if coseKey.Alg == webauthn.COSE_ALGORITHM_EDDSA_ED25519 {
+			keyType := "sk-ssh-ed25519@openssh.com"
+
+			sshPub := struct {
+				Type        string
+				Key         []byte
+				Application string
+			}{
+				Type:        keyType,
+				Key:         coseKey.X[:],
+				Application: application,
+			}
+
+			sshPriv := struct {
+				Type        string
+				Key         []byte
+				Application string
+				Flags       byte
+				KeyHandle   []byte
+				Reserved    string
+			}{
+				Type:        keyType,
+				Key:         coseKey.X[:],
+				Application: application,
+				Flags:       authData.Flags,
+				KeyHandle:   authData.AttestedCredentialData.CredentialID,
+				Reserved:    "",
+			}
+
+			sshPubBytes = ssh.Marshal(&sshPub)
+			sshPrivBytes = ssh.Marshal(&sshPriv)
+
+		} else {
+			return nil, fmt.Errorf("invalid algorithm cose identifier: %d", coseKey.Alg)
+		}
+	} else {
+		return nil, fmt.Errorf("openSSH SK keys only available for ECDSA or ED25519 key types (got %d)", coseKey.Kty)
+	}
+
+	sshPublicKeyObj, err := ssh.ParsePublicKey(sshPubBytes)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse previously generated public key: %w", err)
+	}
+
+	k := Key{
+		Name:           keyName,
+		Type:           "WEBAUTHN",
+		SSHPublicKey:   &sshPublicKeyObj,
+		SSHCertificate: nil,
+		Missing:        false,
+		LoadError:      nil,
+		algorithm:      "",
+		config: &KeyConfig{
+			Name:          keyName,
+			Type:          "WEBAUTHN",
+			ContainerName: "",
+			ProviderName:  "",
+			SSHPublicKey:  "",
+			SKPrivateHalf: base64.StdEncoding.EncodeToString(sshPrivBytes),
+			Algorithm:     "",
+			Length:        0,
+		},
+		handle: 0,
+		signer: nil,
+	}
+
+	km.Keys[keyName] = &k
+
+	k.SetHWND(uintptr(km.hwnd))
+	k.SaveSSHPublicKey(km.publicKeysDir)
+	k.LoadCertificate("")
+
+	err = km.SaveConfig()
+
+	return &k, err
+}
+
 func (km *KeyManager) KeysList() []*Key {
 	if km.Keys == nil {
 		return nil
@@ -659,7 +1082,7 @@ func (km *KeyManager) SaveConfig() error {
 func (km *KeyManager) DeleteKey(keyToDelete *Key, deleteFromKeystore bool) error {
 	fmt.Printf("Deleting %s - fomrKeystore %v\n", keyToDelete.Name, deleteFromKeystore)
 
-	if deleteFromKeystore {
+	if deleteFromKeystore && keyToDelete.Type == "NCRYPT" {
 		err := NCryptDeleteKey(keyToDelete.handle, 0)
 
 		if err != nil {
@@ -729,4 +1152,34 @@ func (km *KeyManager) Notify(n NotifyMsg) {
 
 func (km *KeyManager) CygwinSocketLocation() string {
 	return km.cygwinListener.Sockfile
+}
+
+func (km *KeyManager) LoadWebAuthNKey(kc *KeyConfig) (*Key, error) {
+	out, _, _, _, err := ssh.ParseAuthorizedKey([]byte(kc.SSHPublicKey))
+
+	if err != nil {
+		fmt.Printf("Error parsing authorized: %w", err)
+		return nil, err
+	}
+
+	k := Key{
+		Name:           kc.Name,
+		Type:           "WEBAUTHN",
+		SSHPublicKey:   &out,
+		SSHCertificate: nil,
+		Missing:        false,
+		LoadError:      nil,
+		algorithm:      "",
+		config:         kc,
+		handle:         0,
+		signer:         nil,
+	}
+
+	km.Keys[kc.Name] = &k
+
+	k.SetHWND(uintptr(km.hwnd))
+	k.SaveSSHPublicKey(km.publicKeysDir)
+	k.LoadCertificate("")
+
+	return &k, nil
 }

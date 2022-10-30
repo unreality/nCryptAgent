@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/lxn/walk"
 	"ncryptagent/ncrypt"
+	"ncryptagent/webauthn"
 )
 
 type KeysPage struct {
@@ -132,28 +133,32 @@ func (kp *KeysPage) CreateToolbar() error {
 	}
 	kp.AddDisposable(addMenu)
 
-	createAction := walk.NewAction()
-	createAction.SetText(fmt.Sprintf("Create &nCrypt Key…"))
-	importActionIcon, _ := loadSystemIcon("imageres", 77, 16)
-	createAction.SetImage(importActionIcon)
-	createAction.SetDefault(true)
-	createAction.Triggered().Attach(kp.onCreateKey)
-	addMenu.Actions().Add(createAction)
+	//createAction := walk.NewAction()
+	//createAction.SetText(fmt.Sprintf("Create &nCrypt Key…"))
+	//createActionIcon, _ := loadSystemIcon("imageres", 77, 16)
+	//createAction.SetImage(createActionIcon)
+	//createAction.Triggered().Attach(kp.onCreateKey)
+	//addMenu.Actions().Add(createAction)
+
+	createWebAuthN := walk.NewAction()
+	createWebAuthN.SetText(fmt.Sprintf("Create &WebAuthN Key…"))
+	createWebAuthNIcon, _ := loadSystemIcon("imageres", 77, 16)
+	createWebAuthN.SetImage(createWebAuthNIcon)
+	createWebAuthN.Triggered().Attach(kp.onCreateWebAuthNKey)
+	addMenu.Actions().Add(createWebAuthN)
 
 	createExistingAction := walk.NewAction()
 	createExistingAction.SetText(fmt.Sprintf("Add &Existing nCrypt key…"))
 	createExistingActionIcon, _ := loadSystemIcon("imageres", 172, 16)
 	createExistingAction.SetImage(createExistingActionIcon)
-	createExistingAction.SetDefault(true)
 	createExistingAction.Triggered().Attach(kp.onCreateExistingKey)
 	addMenu.Actions().Add(createExistingAction)
 
 	addMenuAction := walk.NewMenuAction(addMenu)
 	addMenuActionIcon, _ := loadSystemIcon("shell32", 104, 16)
 	addMenuAction.SetImage(addMenuActionIcon)
-	addMenuAction.SetText(fmt.Sprintf("Create Key"))
-	addMenuAction.SetToolTip(createAction.Text())
-	addMenuAction.Triggered().Attach(kp.onCreateKey)
+	addMenuAction.SetText(fmt.Sprintf("Add Key"))
+	addMenuAction.Triggered().Attach(kp.onCreateExistingKey)
 	kp.listToolbar.Actions().Add(addMenuAction)
 
 	kp.listToolbar.Actions().Add(walk.NewSeparatorAction())
@@ -179,11 +184,17 @@ func (kp *KeysPage) CreateToolbar() error {
 	}
 	kp.listView.AddDisposable(contextMenu)
 
-	importAction2 := walk.NewAction()
-	importAction2.SetText(fmt.Sprintf("&Create new nCrypt Key…"))
-	importAction2.Triggered().Attach(kp.onCreateKey)
-	contextMenu.Actions().Add(importAction2)
-	kp.ShortcutActions().Add(importAction2)
+	//createNewAction2 := walk.NewAction()
+	//createNewAction2.SetText(fmt.Sprintf("&Create new nCrypt Key…"))
+	//createNewAction2.Triggered().Attach(kp.onCreateKey)
+	//contextMenu.Actions().Add(createNewAction2)
+	//kp.ShortcutActions().Add(createNewAction2)
+
+	addWebAuthN2 := walk.NewAction()
+	addWebAuthN2.SetText(fmt.Sprintf("&Create new WebAuthN Key…"))
+	addWebAuthN2.Triggered().Attach(kp.onCreateWebAuthNKey)
+	contextMenu.Actions().Add(addWebAuthN2)
+	kp.ShortcutActions().Add(addWebAuthN2)
 
 	createExistingAction2 := walk.NewAction()
 	createExistingAction2.SetText(fmt.Sprintf("&Add existing key…"))
@@ -226,10 +237,41 @@ func (kp *KeysPage) onCreateKey() {
 	}
 }
 
+func (kp *KeysPage) onCreateWebAuthNKey() {
+	if config := runCreateNewWebAuthNKeyDialog(kp.Form(), kp.keyManager); config != nil {
+		go func() {
+
+			coseAlgorithm := webauthn.COSE_ALGORITHM_ECDSA_P256_WITH_SHA256
+			coseHash := webauthn.HASH_ALGORITHM_SHA_256
+
+			switch config.Algorithm {
+			case "sk-ecdsa-sha2-nistp256@openssh.com":
+				coseAlgorithm = webauthn.COSE_ALGORITHM_ECDSA_P256_WITH_SHA256
+			case "sk-ssh-ed25519@openssh.com":
+				coseAlgorithm = webauthn.COSE_ALGORITHM_EDDSA_ED25519
+			}
+
+			fmt.Printf("Creating WebAuthN Key\n")
+			_, err := kp.keyManager.CreateNewWebAuthNKey(config.Name,
+				"ssh:",
+				int64(coseAlgorithm),
+				coseHash,
+				uintptr(kp.Handle()),
+			)
+
+			if err != nil {
+				showError(err, kp.Form())
+			}
+
+			kp.listView.Load(false)
+		}()
+	}
+}
+
 func (kp *KeysPage) onCreateExistingKey() {
 	if config := runLoadExistingDialog(kp.Form(), kp.keyManager); config != nil {
 		go func() {
-			_, err := kp.keyManager.LoadKey(config)
+			_, err := kp.keyManager.LoadNCryptKey(config)
 
 			if err != nil {
 				showError(err, kp.Form())

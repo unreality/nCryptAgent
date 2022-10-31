@@ -35,7 +35,7 @@ Use your WebAuthN authenticator as your SSH key with `sk-ssh-ed25519@openssh.com
 * Download the latest release
 * Click `Create Key` and enter a key name and container name.
   * Key name is a friendly descriptive name for the SSH Key
-  * Container name is the nCrypt key container identifier which will be used. You can enter a memorable name such as `MY_KEY` or something random like a UUID.
+  * Container name is the nCrypt key container identifier which will be used - it will be shown in the password prompt when signing is requested.
 * Select your Key Algorithm
 * Enter a password or PIN
   * This can be empty if you wish to be a bit less secure
@@ -68,32 +68,28 @@ If you don't already have a certificate on your smart card, you'll need to creat
 
 ### TPM Smart Cards
 
-* Create a card using the instructions below
-* Use `certreq` and `certutil` to generate a self-signed certificate and install it to the smart card
+* Create a card if you dont have one:
+  * Ensure your TPM is enabled in BIOS or UEFI. Different manufacturers name the setting differently.
+  * Open a command prompt
+  * Run `tpmvscmgr create /name <Friendly_Name> /AdminKey DEFAULT /pin PROMPT /pinpolicy minlen 4 /generate` where `<Friendly_Name>` is a name you choose
+* You can use `certreq` and `certutil` to load a certificate onto the smart card, after which you can `Add existing nCrypt Key` to import your Smart Card credentials into nCryptAgent
+
+### Add Smart Card Key to nCryptAgent
+
+If you have a key on your smart card (for instance you have existing credentials on your Yubikey) you can import that key by clicking on the dropdown next to `Create Key` and selecting `Add existing nCrypt key`. Select your smart card reader from the dropdown, then select your existing key and enter a name. Click save and your existing key will be ready for use.
+
+## Client Configuration
 
 Once you have a key added to nCryptAgent you can use it by configuring your SSH client to use nCryptAgent as its SSH agent. For OpenSSH for Windows and PuTTY this should work automatically, as long as those listeners are enabled in the `Config` tab. For WSL2 and Cygwin, you will need to set your `SSH_AUTH_SOCK` environment variable. The commands for doing this are available in the `Config` tab.
 
-## Using existing Smart Card keys
-
-If you have already generated a key on your smart card (for instance you have existing credentials on your Yubikey) you can import that key by clicking on the dropdown next to `Create Key` and selecting `Add existing nCrypt key`. Select your smart card reader from the dropdown, then select your existing key and enter a name. Click save and your existing key will be ready for use.
+* If you are using the Named Pipe listener, ensure the `OpenSSH Authentication Agent` service is stopped in `Services`
+* If you are using the Pageant listener, ensure pageant is not running
 
 ## OpenSSH Certificates
 
 Since `ssh-add` does [not support adding certificates without a private key](https://bugzilla.mindrot.org/show_bug.cgi?id=3212), nCryptAgent checks for a matching certificate in its `PublicKeys` directory (`%AppData%\nCryptAgent\PublicKeys`). If you have an OpenSSH certificate you wish to use, you can either use the `Add Cert` button to attach a certificate to the currently selected key, or alternatively place the certificate in the `PublicKeys` directory with the correct name. The name format for certificates is `<MatchingCertificateFingerprint>-cert.pub`. 
 
 For example, if an nCrypt key has a location of `%AppData%\nCryptAgent\PublicKeys\deadbeefd530ca2d01b3b74c8641fe29.pub` the matching certificate will be named `%AppData%\nCryptAgent\PublicKeys\deadbeefd530ca2d01b3b74c8641fe29-cert.pub`. 
-
-## Creating a TPM-backed Smart Card
-
-Users without a physical key can create a TPM-backed smart card:
-* Ensure your TPM is enabled in BIOS or UEFI. Different manufacturers name the setting differently.
-* Open a command prompt
-* Run `tpmvscmgr create /name <Friendly_Name> /AdminKey DEFAULT /pin PROMPT /pinpolicy minlen 4 /generate` where `<Friendly_Name>` is a name you choose
-* You can use `certreq` and `certutil` to load a certificate onto the smart card, after which you can `Add existing nCrypt Key` to import your Smart Card credentials into nCryptAgent
-
-You can delete your TPM smart card with:
-* `tpmvscmgr.exe destroy /instance <DeviceID>` where `<DeviceID>` is the id of the tpm smart card. If you only have one tpm smart card, this will be `ROOT\SMARTCARDREADER\0000`
-* To get a list of `DeviceIDs` run `wmic path win32_PnPEntity where "DeviceID like '%smartcardreader%'" get DeviceID,Name,Status`
 
 ## Building
 

@@ -7,7 +7,7 @@ nCryptAgent
 
 Ever been jealous of macOS users and their fancy Secure Enclave backed SSH Keys? Or wanted a nice GUI for managing keys like [Secretive](https://github.com/maxgoedjen/secretive)? nCryptAgent is your answer!
 
-Use any smart card as an SSH key source, and manage them using a nice-ish GUI! Don't have a physical smart card or security key like a Yubikey? No problem -- Use the Microsoft Platform Crpyto Provider that is backed by your TPM for hardware backed keys!
+Use any smart card as an SSH key source, and manage them using a nice-ish GUI! Don't have a physical smart card or security key like a Yubikey? No problem -- Use the Microsoft Platform Crypto Provider that is backed by your TPM for hardware backed keys!
 
 Use your WebAuthN authenticator as your SSH key with `sk-ssh-ed25519@openssh.com` and `sk-ecdsa-sha2-nistp256@openssh.com` key types.
 

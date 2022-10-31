@@ -29,6 +29,13 @@ import (
 	"unsafe"
 )
 
+const (
+	OPENSSH_SK_ECDSA        = "sk-ecdsa-sha2-nistp256@openssh.com"
+	OPENSSH_SK_ED25519      = "sk-ssh-ed25519@openssh.com"
+	OPENSSH_SK_ECDSA_CERT   = "sk-ecdsa-sha2-nistp256-cert-v01@openssh.com"
+	OPENSSH_SK_ED25519_CERT = "sk-ssh-ed25519-cert-v01@openssh.com"
+)
+
 type NotifyMsg struct {
 	Title   string
 	Message string
@@ -128,7 +135,7 @@ func (k *Key) ReturnFocus() {
 }
 
 func (k *Key) AlgorithmReadable() string {
-	if k.algorithm == ALG_ECDSA_RSA {
+	if k.algorithm == ALG_RSA {
 		return fmt.Sprintf("%s-%d", k.algorithm, k.length)
 	} else {
 		return k.algorithm
@@ -287,7 +294,6 @@ func (k *Key) SignWithAlgorithmSSH(b []byte, algorithm string) (*ssh.Signature, 
 			return nil, fmt.Errorf("invalid signer type %T", algorithmSigner)
 		}
 	} else if k.Type == "WEBAUTHN" {
-		fmt.Printf("Webauthn Sign with algorithm %s\n", algorithm)
 		return k.signWebAuthN(b)
 	}
 
@@ -304,7 +310,7 @@ func (k *Key) signWebAuthN(signData []byte) (*ssh.Signature, error) {
 	var application string
 	var keyHandle []byte
 
-	if (*k.SSHPublicKey).Type() == "sk-ecdsa-sha2-nistp256@openssh.com" || (*k.SSHPublicKey).Type() == "sk-ecdsa-sha2-nistp256-cert-v01@openssh.com" {
+	if (*k.SSHPublicKey).Type() == OPENSSH_SK_ECDSA || (*k.SSHPublicKey).Type() == OPENSSH_SK_ECDSA_CERT {
 		priv := sshPrivateKeySKECDSA{}
 		err = ssh.Unmarshal(privBytes, &priv)
 
@@ -314,7 +320,7 @@ func (k *Key) signWebAuthN(signData []byte) (*ssh.Signature, error) {
 
 		application = priv.Application
 		keyHandle = priv.KeyHandle
-	} else if (*k.SSHPublicKey).Type() == "sk-ssh-ed25519@openssh.com" || (*k.SSHPublicKey).Type() == "sk-ssh-ed25519-cert-v01@openssh.com" {
+	} else if (*k.SSHPublicKey).Type() == OPENSSH_SK_ED25519 || (*k.SSHPublicKey).Type() == OPENSSH_SK_ED25519_CERT {
 		priv := sshPrivateKeySKED25519{}
 		err = ssh.Unmarshal(privBytes, &priv)
 
@@ -622,7 +628,7 @@ func (km *KeyManager) LoadNCryptKey(kc *KeyConfig) (*Key, error) {
 	}
 
 	//var keyLength = 0
-	//if algorithmName == ALG_ECDSA_RSA {
+	//if algorithmName == ALG_RSA {
 	//    keyLength, err = NCryptGetPropertyInt(keyHandle, NCRYPT_LENGTH_PROPERTY)
 	//    if err == nil {
 	//        fmt.Printf("Got length %d\n", keyLength)
@@ -719,7 +725,7 @@ func (km *KeyManager) CreateNewNCryptKey(keyName string, containerName string, p
 		return nil, fmt.Errorf("unable to create persisted key: %w", err)
 	}
 
-	if algorithm == ALG_ECDSA_RSA {
+	if algorithm == ALG_RSA {
 		err = NCryptSetProperty(kh, NCRYPT_LENGTH_PROPERTY, uint32(bits), 0)
 
 		if err != nil {
@@ -792,7 +798,7 @@ func (km *KeyManager) CreateNewWebAuthNKey(keyName string, application string, c
 	}
 
 	if application == "" {
-		application = "ssh:"
+		application = fmt.Sprintf("ssh:%s", keyName)
 	}
 
 	var userName string
@@ -913,7 +919,7 @@ func (km *KeyManager) CreateNewWebAuthNKey(keyName string, application string, c
 
 			publicKeyBytes := elliptic.Marshal(elliptic.P256(), x, y)
 
-			keyType := "sk-ecdsa-sha2-nistp256@openssh.com"
+			keyType := OPENSSH_SK_ECDSA
 			curveName := "nistp256"
 
 			sshPub := struct {
@@ -945,7 +951,7 @@ func (km *KeyManager) CreateNewWebAuthNKey(keyName string, application string, c
 		}
 	} else if coseKey.Kty == webauthn.COSE_KEY_TYPE_OKP {
 		if coseKey.Alg == webauthn.COSE_ALGORITHM_EDDSA_ED25519 {
-			keyType := "sk-ssh-ed25519@openssh.com"
+			keyType := OPENSSH_SK_ECDSA
 
 			sshPub := struct {
 				Type        string

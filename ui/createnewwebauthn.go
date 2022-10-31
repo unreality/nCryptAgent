@@ -7,8 +7,8 @@ import (
 )
 
 var algorithmChoicesWebAuthN = []string{
-	"sk-ecdsa-sha2-nistp256@openssh.com",
-	"sk-ssh-ed25519@openssh.com",
+	ncrypt.OPENSSH_SK_ECDSA,
+	ncrypt.OPENSSH_SK_ED25519,
 }
 
 type CreateNewWebAuthNKey struct {

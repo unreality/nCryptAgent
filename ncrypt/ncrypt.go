@@ -95,24 +95,17 @@ const (
 	ProviderMSSC       = "Microsoft Smart Card Key Storage Provider"
 	ProviderMSPlatform = "Microsoft Platform Crypto Provider"
 
-	ALG_ECDSA_RSA  = "RSA"
+	ALG_RSA        = "RSA"
 	ALG_ECDSA_P256 = "ECDSA_P256"
 	ALG_ECDSA_P384 = "ECDSA_P384"
 	ALG_ECDSA_P521 = "ECDSA_P521"
 )
 
 var (
-	// curveNames maps bcrypt.h curve names to elliptic curves.
-	//curveNames = map[string]elliptic.Curve{
-	//	"nistP256": elliptic.P256(), // BCRYPT_ECC_CURVE_NISTP256
-	//	"nistP384": elliptic.P384(), // BCRYPT_ECC_CURVE_NISTP384
-	//	"nistP521": elliptic.P521(), // BCRYPT_ECC_CURVE_NISTP521
-	//}
-
 	curveNames = map[string]elliptic.Curve{
-		ALG_ECDSA_P256: elliptic.P256(), // BCRYPT_ECC_CURVE_NISTP256
-		ALG_ECDSA_P384: elliptic.P384(), // BCRYPT_ECC_CURVE_NISTP384
-		ALG_ECDSA_P521: elliptic.P521(), // BCRYPT_ECC_CURVE_NISTP521
+		ALG_ECDSA_P256: elliptic.P256(),
+		ALG_ECDSA_P384: elliptic.P384(),
+		ALG_ECDSA_P521: elliptic.P521(),
 	}
 
 	curveMagicMap = map[string]uint32{
@@ -129,7 +122,7 @@ var (
 		crypto.SHA512: "SHA512", // BCRYPT_SHA512_ALGORITHM
 	}
 
-	AVAILABLE_ALGORITHMS = []string{ALG_ECDSA_P256, ALG_ECDSA_P384, ALG_ECDSA_P521, ALG_ECDSA_RSA}
+	AVAILABLE_ALGORITHMS = []string{ALG_ECDSA_P256, ALG_ECDSA_P384, ALG_ECDSA_P521, ALG_RSA}
 
 	crypt32 = windows.MustLoadDLL("crypt32.dll")
 	nCrypt  = windows.MustLoadDLL("ncrypt.dll")

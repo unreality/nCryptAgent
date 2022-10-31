@@ -1,11 +1,11 @@
-<img src="resources/digitalkey.png" width="200">
+<img src="resources/digitalkey.png" width="256" alt="nCryptAgent">
 
 nCryptAgent
 ===========
 
 *An SSH Agent for Hardware backed keys on Windows*
 
-Ever been jealous of MacOS users and their fancy Secure Enclave backed SSH Keys? Or wanted a nice GUI for managing keys like [Secretive](https://github.com/maxgoedjen/secretive)? nCryptAgent is your answer!
+Ever been jealous of macOS users and their fancy Secure Enclave backed SSH Keys? Or wanted a nice GUI for managing keys like [Secretive](https://github.com/maxgoedjen/secretive)? nCryptAgent is your answer!
 
 Use any smart card as an SSH key source, and manage them using a nice-ish GUI! Don't have a physical smart card or security key like a Yubikey? No problem -- Create a Virtual Smart Card that is backed by your TPM for hardware backed keys!
 
@@ -25,13 +25,13 @@ Use your WebAuthN authenticator as your SSH key with `sk-ssh-ed25519@openssh.com
   * WSL2
   * Cygwin/mSys/MinGW
 * Notifications so you know when your key is being used
-* Configurable PIN cache so you dont have to re-enter your PIN for rapid successive key usage (smart cards only)
+* Configurable PIN cache, so you don't have to re-enter your PIN for rapid successive key usage (smart cards only)
 * OpenSSH Certificates
   * Adds support for OpenSSH certificates to PuTTY!
 
 ## Getting Started with WebAuthN Security Keys
 
-* From the nCryptAgent main window, select the dropdown arrow in the bottom left and click on `Create new webauthn key'
+* From the nCryptAgent main window, select the dropdown arrow in the bottom left and click on `Create new webauthn key`
 * Enter a friendly name for the key and choose your key algorithm
 * Click `Save` and you will be prompted to enter your pin and touch your security key
 * Your key is now available for use
@@ -91,5 +91,5 @@ I'll get around to making a proper build script at some point...
 
 ## Known Issues
 
-* Sometimes the PIN prompt does not obtain focus correctly and will popup in the background.
+* Sometimes the PIN prompt does not obtain focus correctly and will pop up in the background.
 * Sometimes the 'Copy' buttons do not correctly copy to clipboard.

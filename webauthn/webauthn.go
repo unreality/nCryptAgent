@@ -6,20 +6,19 @@ import (
 	"unsafe"
 )
 
-//"github.com/fxamacker/cbor/v2"
 var (
 	webauthn = syscall.MustLoadDLL("webauthn.dll")
 
-	procWebAuthNGetApiVersionNumber                           = webauthn.MustFindProc("WebAuthNGetApiVersionNumber")
-	procWebAuthNIsUserVerifyingPlatformAuthenticatorAvailable = webauthn.MustFindProc("WebAuthNIsUserVerifyingPlatformAuthenticatorAvailable")
-	procWebAuthNAuthenticatorMakeCredential                   = webauthn.MustFindProc("WebAuthNAuthenticatorMakeCredential")
-	procWebAuthNAuthenticatorGetAssertion                     = webauthn.MustFindProc("WebAuthNAuthenticatorGetAssertion")
-	procWebAuthNFreeCredentialAttestation                     = webauthn.MustFindProc("WebAuthNFreeCredentialAttestation")
-	procWebAuthNFreeAssertion                                 = webauthn.MustFindProc("WebAuthNFreeAssertion")
-	procWebAuthNGetCancellationId                             = webauthn.MustFindProc("WebAuthNGetCancellationId")
-	procWebAuthNCancelCurrentOperation                        = webauthn.MustFindProc("WebAuthNCancelCurrentOperation")
-	procWebAuthNGetErrorName                                  = webauthn.MustFindProc("WebAuthNGetErrorName")
-	procWebAuthNGetW3CExceptionDOMError                       = webauthn.MustFindProc("WebAuthNGetW3CExceptionDOMError")
+	procWebAuthNGetApiVersionNumber = webauthn.MustFindProc("WebAuthNGetApiVersionNumber")
+	//procWebAuthNIsUserVerifyingPlatformAuthenticatorAvailable = webauthn.MustFindProc("WebAuthNIsUserVerifyingPlatformAuthenticatorAvailable")
+	procWebAuthNAuthenticatorMakeCredential = webauthn.MustFindProc("WebAuthNAuthenticatorMakeCredential")
+	procWebAuthNAuthenticatorGetAssertion   = webauthn.MustFindProc("WebAuthNAuthenticatorGetAssertion")
+	procWebAuthNFreeCredentialAttestation   = webauthn.MustFindProc("WebAuthNFreeCredentialAttestation")
+	procWebAuthNFreeAssertion               = webauthn.MustFindProc("WebAuthNFreeAssertion")
+	//procWebAuthNGetCancellationId                             = webauthn.MustFindProc("WebAuthNGetCancellationId")
+	//procWebAuthNCancelCurrentOperation                        = webauthn.MustFindProc("WebAuthNCancelCurrentOperation")
+	//procWebAuthNGetErrorName                                  = webauthn.MustFindProc("WebAuthNGetErrorName")
+	//procWebAuthNGetW3CExceptionDOMError                       = webauthn.MustFindProc("WebAuthNGetW3CExceptionDOMError")
 )
 
 const (
@@ -160,8 +159,7 @@ type CLIENT_DATA struct {
 }
 
 type AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS_V3 struct {
-	Version uint32
-
+	Version             uint32
 	TimeoutMilliseconds uint32 // Time that the operation is expected to complete within.
 	// This is used as guidance, and can be overridden by the platform.
 	CredentialList                  CREDENTIALS // Credentials used for exclusion.
@@ -172,13 +170,10 @@ type AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS_V3 struct {
 	AttestationConveyancePreference uint32      // Attestation Conveyance Preference.
 	Flags                           uint32      // Reserved for future Use
 
-	//
 	// The following fields have been added in WEBAUTHN_AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS_VERSION_2
-	//
 	CancellationId *syscall.GUID // Cancellation Id - Optional - See WebAuthNGetCancellationId
-	//
+
 	// The following fields have been added in WEBAUTHN_AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS_VERSION_3
-	//
 	ExcludeCredentialList CREDENTIAL_LIST // Exclude Credential List. If present, "CredentialList" will be ignored.
 }
 
@@ -219,145 +214,63 @@ type EXTENSIONS struct {
 }
 
 type CREDENTIAL_ATTESTATION struct {
-	Version    uint32  // Version of this structure, to allow for modifications in the future.
-	FormatType *uint16 // Attestation format type
-
+	Version              uint32  // Version of this structure, to allow for modifications in the future.
+	FormatType           *uint16 // Attestation format type
 	AuthenticatorDataLen uint32  // Size of cbAuthenticatorData.
 	AuthenticatorData    uintptr // Authenticator data that was created for this credential.
-
-	AttestationLen uint32 // Size of CBOR encoded attestation information
-	//0 => encoded as CBOR null value.
-	Attestation uintptr //Encoded CBOR attestation information
-
+	AttestationLen       uint32  // Size of CBOR encoded attestation information
+	// 0 => encoded as CBOR null value.
+	Attestation           uintptr // Encoded CBOR attestation information
 	AttestationDecodeType uint32
-	// Following
-	AttestationDecode *[]byte //Depends on the AttestationDecodeType
+	AttestationDecode     *[]byte //Depends on the AttestationDecodeType
 	//  WEBAUTHN_ATTESTATION_DECODE_NONE
 	//      NULL - not able to decode the CBOR attestation information
 	//  WEBAUTHN_ATTESTATION_DECODE_COMMON
 	//      PWEBAUTHN_COMMON_ATTESTATION;
-
-	// The CBOR encoded Attestation Object to be returned to the RP.
 	AttestationObjectLen uint32
-	AttestationObject    uintptr
-
-	// The CredentialId bytes extracted from the Authenticator Data.
+	AttestationObject    uintptr // The CBOR encoded Attestation Object to be returned to the RP.
+	CredentialIdLen      uint32
+	CredentialId         uintptr // The CredentialId bytes extracted from the Authenticator Data.
 	// Used by Edge to return to the RP.
-	CredentialIdLen uint32
-	CredentialId    uintptr
 
-	//
 	// Following fields have been added in WEBAUTHN_CREDENTIAL_ATTESTATION_VERSION_2
-	//
-
 	Extensions EXTENSIONS
 
-	//
 	// Following fields have been added in WEBAUTHN_CREDENTIAL_ATTESTATION_VERSION_3
-	//
-
-	// One of the WEBAUTHN_CTAP_TRANSPORT_* bits will be set corresponding to
+	UsedTransport uint32 // One of the WEBAUTHN_CTAP_TRANSPORT_* bits will be set corresponding to
 	// the transport that was used.
-	UsedTransport uint32
-
-	////
-	//// Following fields have been added in WEBAUTHN_CREDENTIAL_ATTESTATION_VERSION_4
-	////
-	//
-	//BOOL bEpAtt;
-	//BOOL bLargeBlobSupported;
-	//BOOL bResidentKey;
 }
 
 type AUTHENTICATOR_GET_ASSERTION_OPTIONS struct {
-	// Version of this structure, to allow for modifications in the future.
-	Version uint32
-
-	// Time that the operation is expected to complete within.
+	Version             uint32 // Version of this structure, to allow for modifications in the future.
+	TimeoutMilliseconds uint32 // Time that the operation is expected to complete within.
 	// This is used as guidance, and can be overridden by the platform.
-	TimeoutMilliseconds uint32
+	CredentialList              CREDENTIALS // Allowed Credentials List.
+	Extensions                  EXTENSIONS  // Optional extensions to parse when performing the operation.
+	AuthenticatorAttachment     uint32      // Optional. Platform vs Cross-Platform Authenticators.
+	UserVerificationRequirement uint32      // User Verification Requirement.
+	Flags                       uint32      // Flags
 
-	// Allowed Credentials List.
-	CredentialList CREDENTIALS
-
-	// Optional extensions to parse when performing the operation.
-	Extensions EXTENSIONS
-
-	// Optional. Platform vs Cross-Platform Authenticators.
-	AuthenticatorAttachment uint32
-
-	// User Verification Requirement.
-	UserVerificationRequirement uint32
-
-	// Flags
-	Flags uint32
-
-	//
 	// The following fields have been added in WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS_VERSION_2
-	//
+	U2fAppId     *uint16 // Optional identifier for the U2F AppId. Converted to UTF8 before being hashed. Not lower cased.
+	U2fAppIdUsed *bool   // If non-NULL, then, set to TRUE if the above pwszU2fAppid was used instead of PCWSTR pwszRpId;
 
-	// Optional identifier for the U2F AppId. Converted to UTF8 before being hashed. Not lower cased.
-	U2fAppId *uint16
-
-	// If the following is non-NULL, then, set to TRUE if the above pwszU2fAppid was used instead of
-	// PCWSTR pwszRpId;
-	U2fAppIdUsed *bool
-
-	//
 	// The following fields have been added in WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS_VERSION_3
-	//
+	CancellationId *syscall.GUID // Cancellation Id - Optional - See WebAuthNGetCancellationId
 
-	// Cancellation Id - Optional - See WebAuthNGetCancellationId
-	CancellationId *syscall.GUID
-
-	//
 	// The following fields have been added in WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS_VERSION_4
-	//
-
-	// Allow Credential List. If present, "CredentialList" will be ignored.
-	AllowCredentialList CREDENTIAL_LIST
-
-	//
-	// The following fields have been added in WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS_VERSION_5
-	//
-
-	//CredLargeBlobOperation uint32
-	//
-	//// Size of pbCredLargeBlob
-	//CredLargeBlobLen uint32
-	//CredLargeBlob    uintptr
-
-	////
-	//// The following fields have been added in WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS_VERSION_6
-	////
-	//
-	//// PRF values which will be converted into HMAC-SECRET values according to WebAuthn Spec.
-	//PWEBAUTHN_HMAC_SECRET_SALT_VALUES pHmacSecretSaltValues
-	//
-	//// Optional. BrowserInPrivate Mode. Defaulting to FALSE.
-	//BOOL bBrowserInPrivateMode
+	AllowCredentialList CREDENTIAL_LIST // Allow Credential List. If present, "CredentialList" will be ignored.
 }
 
 type ASSERTION struct {
-	// Version of this structure, to allow for modifications in the future.
-	Version uint32
-
-	// Size of cbAuthenticatorData.
-	AuthenticatorDataLen uint32
-	// Authenticator data that was created for this assertion.
-	AuthenticatorData uintptr
-
-	// Size of pbSignature.
-	SignatureLen uint32
-	// Signature that was generated for this assertion.
-	Signature uintptr
-
-	// Credential that was used for this assertion.
-	Credential CREDENTIAL
-
-	// Size of User Id
-	UserIdLen uint32
-	UserId    uintptr
+	Version              uint32     // Version of this structure, to allow for modifications in the future.
+	AuthenticatorDataLen uint32     // Size of cbAuthenticatorData.
+	AuthenticatorData    uintptr    // Authenticator data that was created for this assertion.
+	SignatureLen         uint32     // Size of pbSignature.
+	Signature            uintptr    // Signature that was generated for this assertion.
+	Credential           CREDENTIAL // Credential that was used for this assertion.
+	UserIdLen            uint32     // Size of User Id
+	UserId               uintptr
 }
 
 func errNoToStr(e uint32) string {

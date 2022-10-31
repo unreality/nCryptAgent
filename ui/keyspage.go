@@ -245,15 +245,14 @@ func (kp *KeysPage) onCreateWebAuthNKey() {
 			coseHash := webauthn.HASH_ALGORITHM_SHA_256
 
 			switch config.Algorithm {
-			case "sk-ecdsa-sha2-nistp256@openssh.com":
+			case ncrypt.OPENSSH_SK_ECDSA:
 				coseAlgorithm = webauthn.COSE_ALGORITHM_ECDSA_P256_WITH_SHA256
-			case "sk-ssh-ed25519@openssh.com":
+			case ncrypt.OPENSSH_SK_ED25519:
 				coseAlgorithm = webauthn.COSE_ALGORITHM_EDDSA_ED25519
 			}
 
-			fmt.Printf("Creating WebAuthN Key\n")
 			_, err := kp.keyManager.CreateNewWebAuthNKey(config.Name,
-				"ssh:",
+				"",
 				int64(coseAlgorithm),
 				coseHash,
 				uintptr(kp.Handle()),

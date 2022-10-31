@@ -1,4 +1,4 @@
-package ncrypt
+package keyman
 
 import (
 	"bytes"

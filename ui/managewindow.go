@@ -7,7 +7,7 @@ package ui
 
 import (
 	"fmt"
-	"ncryptagent/ncrypt"
+	"ncryptagent/keyman"
 	"sync"
 	"unsafe"
 
@@ -34,7 +34,7 @@ var taskbarButtonCreatedMsg uint32
 
 var initedManageTunnels sync.Once
 
-func NewManageKeysWindow(keyManager *ncrypt.KeyManager) (*ManageKeysWindow, error) {
+func NewManageKeysWindow(keyManager *keyman.KeyManager) (*ManageKeysWindow, error) {
 	initedManageTunnels.Do(func() {
 		walk.AppendToWalkInit(func() {
 			walk.MustRegisterWindowClass(manageWindowWindowClass)

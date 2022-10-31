@@ -87,49 +87,42 @@ const (
 	bCryptPadPKCS1 = uint32(2)
 
 	// Magic numbers for public key blobs.
-	rsa1Magic = 0x31415352 // "RSA1" BCRYPT_RSAPUBLIC_MAGIC
-	ecs1Magic = 0x31534345 // "ECS1" BCRYPT_ECDSA_PUBLIC_P256_MAGIC
-	ecs3Magic = 0x33534345 // "ECS3" BCRYPT_ECDSA_PUBLIC_P384_MAGIC
-	ecs5Magic = 0x35534345 // "ECS5" BCRYPT_ECDSA_PUBLIC_P521_MAGIC
+	RSA1Magic = 0x31415352 // "RSA1" BCRYPT_RSAPUBLIC_MAGIC
+	ECS1Magic = 0x31534345 // "ECS1" BCRYPT_ECDSA_PUBLIC_P256_MAGIC
+	ECS3Magic = 0x33534345 // "ECS3" BCRYPT_ECDSA_PUBLIC_P384_MAGIC
+	ECS5Magic = 0x35534345 // "ECS5" BCRYPT_ECDSA_PUBLIC_P521_MAGIC
 
 	ProviderMSSC       = "Microsoft Smart Card Key Storage Provider"
 	ProviderMSPlatform = "Microsoft Platform Crypto Provider"
 
-	ALG_ECDSA_RSA  = "RSA"
+	ALG_RSA        = "RSA"
 	ALG_ECDSA_P256 = "ECDSA_P256"
 	ALG_ECDSA_P384 = "ECDSA_P384"
 	ALG_ECDSA_P521 = "ECDSA_P521"
 )
 
 var (
-	// curveNames maps bcrypt.h curve names to elliptic curves.
-	//curveNames = map[string]elliptic.Curve{
-	//	"nistP256": elliptic.P256(), // BCRYPT_ECC_CURVE_NISTP256
-	//	"nistP384": elliptic.P384(), // BCRYPT_ECC_CURVE_NISTP384
-	//	"nistP521": elliptic.P521(), // BCRYPT_ECC_CURVE_NISTP521
-	//}
-
-	curveNames = map[string]elliptic.Curve{
-		ALG_ECDSA_P256: elliptic.P256(), // BCRYPT_ECC_CURVE_NISTP256
-		ALG_ECDSA_P384: elliptic.P384(), // BCRYPT_ECC_CURVE_NISTP384
-		ALG_ECDSA_P521: elliptic.P521(), // BCRYPT_ECC_CURVE_NISTP521
+	CurveNames = map[string]elliptic.Curve{
+		ALG_ECDSA_P256: elliptic.P256(),
+		ALG_ECDSA_P384: elliptic.P384(),
+		ALG_ECDSA_P521: elliptic.P521(),
 	}
 
-	curveMagicMap = map[string]uint32{
-		"P-256": ecs1Magic,
-		"P-384": ecs3Magic,
-		"P-521": ecs5Magic,
+	CurveMagicMap = map[string]uint32{
+		"P-256": ECS1Magic,
+		"P-384": ECS3Magic,
+		"P-521": ECS5Magic,
 	}
 
 	// algIDs maps crypto.Hash values to bcrypt.h constants.
-	hashAlgorithms = map[crypto.Hash]string{
+	HashAlgorithms = map[crypto.Hash]string{
 		crypto.SHA1:   "SHA1",   // BCRYPT_SHA1_ALGORITHM
 		crypto.SHA256: "SHA256", // BCRYPT_SHA256_ALGORITHM
 		crypto.SHA384: "SHA384", // BCRYPT_SHA384_ALGORITHM
 		crypto.SHA512: "SHA512", // BCRYPT_SHA512_ALGORITHM
 	}
 
-	AVAILABLE_ALGORITHMS = []string{ALG_ECDSA_P256, ALG_ECDSA_P384, ALG_ECDSA_P521, ALG_ECDSA_RSA}
+	AVAILABLE_ALGORITHMS = []string{ALG_ECDSA_P256, ALG_ECDSA_P384, ALG_ECDSA_P521, ALG_RSA}
 
 	crypt32 = windows.MustLoadDLL("crypt32.dll")
 	nCrypt  = windows.MustLoadDLL("ncrypt.dll")

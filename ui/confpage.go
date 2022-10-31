@@ -3,8 +3,8 @@ package ui
 import (
 	"fmt"
 	"github.com/lxn/walk"
-	"ncryptagent/ncrypt"
-	"ncryptagent/ncrypt/listeners"
+	"ncryptagent/keyman"
+	"ncryptagent/keyman/listeners"
 	"strconv"
 )
 
@@ -73,7 +73,7 @@ type ConfPage struct {
 	//
 	//fillerContainer     *walk.Composite
 	//currentKeyContainer *walk.Composite
-	keyManager   *ncrypt.KeyManager
+	keyManager   *keyman.KeyManager
 	confPageView *ConfPageView
 
 	globalConfView    *GlobalConfView
@@ -83,7 +83,7 @@ type ConfPage struct {
 	namedPipeConfView *NamedPipeConfView
 }
 
-func NewConfPage(keyManager *ncrypt.KeyManager) (*ConfPage, error) {
+func NewConfPage(keyManager *keyman.KeyManager) (*ConfPage, error) {
 	var err error
 	var disposables walk.Disposables
 	defer disposables.Treat()

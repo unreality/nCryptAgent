@@ -1,21 +1,20 @@
-package ncrypt
+package keyman
 
 import (
 	"crypto"
 	"crypto/rsa"
 	"fmt"
-	"github.com/lxn/win"
 	"golang.org/x/crypto/cryptobyte"
 	"golang.org/x/crypto/cryptobyte/asn1"
 	"io"
 	"math/big"
+	"ncryptagent/ncrypt"
 	"time"
 )
 
 type Signer struct {
 	algorithmGroup string
 	keyHandle      uintptr
-	hwnd           uintptr
 	publicKey      crypto.PublicKey
 	timeout        int
 	timeractive    bool
@@ -27,7 +26,7 @@ func newNCryptSigner(kh uintptr, timeout int) (crypto.Signer, error) {
 		return nil, fmt.Errorf("unable to get public key: %w", err)
 	}
 
-	algGroup, err := NCryptGetPropertyStr(kh, NCRYPT_ALGORITHM_GROUP_PROPERTY)
+	algGroup, err := ncrypt.NCryptGetPropertyStr(kh, ncrypt.NCRYPT_ALGORITHM_GROUP_PROPERTY)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get NCRYPT_ALGORITHM_GROUP_PROPERTY: %w", err)
 	}
@@ -36,7 +35,6 @@ func newNCryptSigner(kh uintptr, timeout int) (crypto.Signer, error) {
 		algorithmGroup: algGroup,
 		keyHandle:      kh,
 		publicKey:      pub,
-		hwnd:           0,
 		timeout:        timeout,
 	}
 
@@ -48,40 +46,9 @@ func (s *Signer) Sign(_ io.Reader, digest []byte, opts crypto.SignerOpts) ([]byt
 		return nil, fmt.Errorf("RSA-PSS signing is not supported")
 	}
 
-	// Only popup our window if we have a parent window handle, and pin cache timer is not active
-	// The active timer implies we already have a cached pin
-	if s.hwnd != 0 && !s.timeractive {
-
-		// TODO: if pageant is disabled, make a nicer experience by using win.GetForegroundWindow() as NCRYPT_WINDOW_HANDLE_PROPERTY
-		err := NCryptSetProperty(s.keyHandle, NCRYPT_WINDOW_HANDLE_PROPERTY, s.hwnd, 0)
-		if err != nil {
-			fmt.Printf("%v", err)
-		}
-
-		curWnd := win.GetForegroundWindow()
-		myID := win.GetCurrentThreadId()
-		curID := win.GetWindowThreadProcessId(curWnd, nil)
-		win.AttachThreadInput(int32(curID), int32(myID), true)
-		win.ShowWindow(win.HWND(s.hwnd), win.SW_NORMAL)
-		win.SetForegroundWindow(win.HWND(s.hwnd))
-		win.SetFocus(win.HWND(s.hwnd))
-		win.SetActiveWindow(win.HWND(s.hwnd))
-		win.AttachThreadInput(int32(curID), int32(myID), false)
-
-		defer func() {
-			win.ShowWindow(win.HWND(s.hwnd), win.SW_HIDE)
-			win.AttachThreadInput(int32(myID), int32(curID), true)
-			win.ShowWindow(curWnd, win.SW_NORMAL)
-			win.SetForegroundWindow(curWnd)
-			win.SetFocus(curWnd)
-			win.SetActiveWindow(curWnd)
-			win.AttachThreadInput(int32(myID), int32(curID), false)
-		}()
-	}
-
 	switch s.algorithmGroup {
 	case "ECDSA":
-		signatureBytes, err := NCryptSignHash(s.keyHandle, digest, "")
+		signatureBytes, err := ncrypt.NCryptSignHash(s.keyHandle, digest, "")
 
 		if err != nil {
 			return nil, err
@@ -104,11 +71,11 @@ func (s *Signer) Sign(_ io.Reader, digest []byte, opts crypto.SignerOpts) ([]byt
 		return nil, fmt.Errorf("signatureBytes not long enough to encode ASN signature")
 	case "RSA":
 		hf := opts.HashFunc()
-		hashAlg, ok := hashAlgorithms[hf]
+		hashAlg, ok := ncrypt.HashAlgorithms[hf]
 		if !ok {
 			return nil, fmt.Errorf("unsupported RSA hash algorithm %v", hf)
 		}
-		signatureBytes, err := NCryptSignHash(s.keyHandle, digest, hashAlg)
+		signatureBytes, err := ncrypt.NCryptSignHash(s.keyHandle, digest, hashAlg)
 
 		if err != nil {
 			return nil, fmt.Errorf("NCryptSignHash failed: %w", err)
@@ -127,21 +94,17 @@ func (s *Signer) handlePinTimer() {
 		fmt.Printf("Starting pin cache purge timer: %ds\n", s.timeout)
 		time.AfterFunc(time.Second*time.Duration(s.timeout), func() {
 			s.timeractive = false
-			NCryptSetProperty(s.keyHandle, NCRYPT_PIN_PROPERTY, "", 0)
+			ncrypt.NCryptSetProperty(s.keyHandle, ncrypt.NCRYPT_PIN_PROPERTY, "", 0)
 			fmt.Printf("PIN Cache purged\n")
 		})
 		s.timeractive = true
 	} else if s.timeout == 0 {
-		NCryptSetProperty(s.keyHandle, NCRYPT_PIN_PROPERTY, "", 0)
+		ncrypt.NCryptSetProperty(s.keyHandle, ncrypt.NCRYPT_PIN_PROPERTY, "", 0)
 	}
 }
 
 func (s *Signer) Public() crypto.PublicKey {
 	return s.publicKey
-}
-
-func (s *Signer) SetHwnd(hwnd uintptr) {
-	s.hwnd = uintptr(hwnd)
 }
 
 func (s *Signer) SetPINTimeout(timeout int) {

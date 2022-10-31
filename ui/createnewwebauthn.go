@@ -4,21 +4,16 @@ import (
 	"fmt"
 	"github.com/lxn/walk"
 	"ncryptagent/keyman"
-	"ncryptagent/ncrypt"
 )
 
-var algorithmChoices = []string{
-	"RSA-2048",
-	"RSA-4096",
-	"ECDSA-P256",
-	"ECDSA-P384",
-	"ECDSA-P521",
+var algorithmChoicesWebAuthN = []string{
+	keyman.OPENSSH_SK_ECDSA,
+	keyman.OPENSSH_SK_ED25519,
 }
 
-type CreateNewKey struct {
+type CreateNewWebAuthNKey struct {
 	*walk.Dialog
 	nameEdit          *walk.LineEdit
-	containerNameEdit *walk.LineEdit
 	algorithmDropdown *walk.ComboBox
 	keyLengthEdit     *walk.LineEdit
 
@@ -28,8 +23,8 @@ type CreateNewKey struct {
 	config keyman.KeyConfig
 }
 
-func runCreateKeyDialog(owner walk.Form, km *keyman.KeyManager) *keyman.KeyConfig {
-	dlg, err := newCreateKeyDialog(owner, km)
+func runCreateNewWebAuthNKeyDialog(owner walk.Form, km *keyman.KeyManager) *keyman.KeyConfig {
+	dlg, err := newCreateNewWebAuthNKeyDialog(owner, km)
 	if showError(err, owner) {
 		return nil
 	}
@@ -41,12 +36,12 @@ func runCreateKeyDialog(owner walk.Form, km *keyman.KeyManager) *keyman.KeyConfi
 	return nil
 }
 
-func newCreateKeyDialog(owner walk.Form, km *keyman.KeyManager) (*CreateNewKey, error) {
+func newCreateNewWebAuthNKeyDialog(owner walk.Form, km *keyman.KeyManager) (*CreateNewWebAuthNKey, error) {
 	var err error
 	var disposables walk.Disposables
 	defer disposables.Treat()
 
-	dlg := new(CreateNewKey)
+	dlg := new(CreateNewWebAuthNKey)
 
 	layout := walk.NewGridLayout()
 	layout.SetSpacing(6)
@@ -80,21 +75,6 @@ func newCreateKeyDialog(owner walk.Form, km *keyman.KeyManager) (*CreateNewKey, 
 	layout.SetRange(dlg.nameEdit, walk.Rectangle{1, 0, 1, 1})
 	dlg.nameEdit.SetText(dlg.config.Name)
 
-	//Setup the containerName
-	containerLabel, err := walk.NewTextLabel(dlg)
-	if err != nil {
-		return nil, err
-	}
-	layout.SetRange(containerLabel, walk.Rectangle{0, 1, 1, 1})
-	containerLabel.SetTextAlignment(walk.AlignHFarVCenter)
-	containerLabel.SetText(fmt.Sprintf("&Container Name:"))
-
-	if dlg.containerNameEdit, err = walk.NewLineEdit(dlg); err != nil {
-		return nil, err
-	}
-	layout.SetRange(dlg.containerNameEdit, walk.Rectangle{1, 1, 1, 1})
-	err = dlg.containerNameEdit.SetText(dlg.config.ContainerName)
-
 	//Setup the algorithm list dropdown
 	algorithmLabel, err := walk.NewTextLabel(dlg)
 	if err != nil {
@@ -106,17 +86,8 @@ func newCreateKeyDialog(owner walk.Form, km *keyman.KeyManager) (*CreateNewKey, 
 	if dlg.algorithmDropdown, err = walk.NewDropDownBox(dlg); err != nil {
 		return nil, err
 	}
-	//ddl := DropdownList{
-	//	values: map[string]string{
-	//		"RSA-2048":   "RSA 2048",
-	//		"RSA-4096":   "RSA 4096",
-	//		"ECDSA_P256": "ECDSA P256",
-	//		"ECDSA_P384": "ECDSA P384",
-	//		"ECDSA_P521": "ECDSAP521",
-	//	},
-	//}
 
-	dlg.algorithmDropdown.SetModel(algorithmChoices)
+	dlg.algorithmDropdown.SetModel(algorithmChoicesWebAuthN)
 	dlg.algorithmDropdown.SetCurrentIndex(0)
 	layout.SetRange(dlg.algorithmDropdown, walk.Rectangle{1, 2, 1, 1})
 
@@ -151,38 +122,15 @@ func newCreateKeyDialog(owner walk.Form, km *keyman.KeyManager) (*CreateNewKey, 
 
 }
 
-func (dlg *CreateNewKey) onSaveButtonClicked() {
-
-	var algorithm string
-	var length int
-	switch dlg.algorithmDropdown.Text() {
-	case "RSA-2048":
-		algorithm = "RSA"
-		length = 2048
-	case "RSA-4096":
-		algorithm = "RSA"
-		length = 4096
-	case "ECDSA-P256":
-		algorithm = "ECDSA_P256"
-		length = 0
-	case "ECDSA-P384":
-		algorithm = "ECDSA_P384"
-		length = 0
-	case "ECDSA-P521":
-		algorithm = "ECDSA_P521"
-		length = 0
-	default:
-		algorithm = "RSA"
-		length = 2048
-	}
+func (dlg *CreateNewWebAuthNKey) onSaveButtonClicked() {
 
 	dlg.config = keyman.KeyConfig{
 		Name:          dlg.nameEdit.Text(),
-		Type:          "NCRYPT",
-		Algorithm:     algorithm,
-		Length:        length,
-		ContainerName: dlg.containerNameEdit.Text(),
-		ProviderName:  ncrypt.ProviderMSSC,
+		Type:          "WEBAUTHN",
+		Algorithm:     dlg.algorithmDropdown.Text(),
+		Length:        0,
+		ContainerName: "",
+		ProviderName:  "",
 		SSHPublicKey:  "",
 	}
 

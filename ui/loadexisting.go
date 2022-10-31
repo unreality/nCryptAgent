@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"github.com/lxn/walk"
+	"ncryptagent/keyman"
 	"ncryptagent/ncrypt"
 	"ncryptagent/scard"
 	"sync"
@@ -17,13 +18,13 @@ type LoadExistingKey struct {
 	saveButton   *walk.PushButton
 	cancelButton *walk.PushButton
 
-	config        ncrypt.KeyConfig
+	config        keyman.KeyConfig
 	scardReaders  []string
 	containerList []ncrypt.NCryptKeyDescriptor
 	onChangeMU    sync.Mutex
 }
 
-func runLoadExistingDialog(owner walk.Form, km *ncrypt.KeyManager) *ncrypt.KeyConfig {
+func runLoadExistingDialog(owner walk.Form, km *keyman.KeyManager) *keyman.KeyConfig {
 	dlg, err := newLoadExistingDialog(owner, km)
 	if showError(err, owner) {
 		return nil
@@ -36,7 +37,7 @@ func runLoadExistingDialog(owner walk.Form, km *ncrypt.KeyManager) *ncrypt.KeyCo
 	return nil
 }
 
-func newLoadExistingDialog(owner walk.Form, km *ncrypt.KeyManager) (*LoadExistingKey, error) {
+func newLoadExistingDialog(owner walk.Form, km *keyman.KeyManager) (*LoadExistingKey, error) {
 	var err error
 	var disposables walk.Disposables
 	defer disposables.Treat()
@@ -158,7 +159,7 @@ func (dlg *LoadExistingKey) onSaveButtonClicked() {
 		}
 	}
 
-	dlg.config = ncrypt.KeyConfig{
+	dlg.config = keyman.KeyConfig{
 		Name:          dlg.nameEdit.Text(),
 		Type:          "NCRYPT",
 		ContainerName: dlg.containerSelect.Text(),

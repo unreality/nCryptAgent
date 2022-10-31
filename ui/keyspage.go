@@ -133,12 +133,12 @@ func (kp *KeysPage) CreateToolbar() error {
 	}
 	kp.AddDisposable(addMenu)
 
-	//createAction := walk.NewAction()
-	//createAction.SetText(fmt.Sprintf("Create &nCrypt Key…"))
-	//createActionIcon, _ := loadSystemIcon("imageres", 77, 16)
-	//createAction.SetImage(createActionIcon)
-	//createAction.Triggered().Attach(kp.onCreateKey)
-	//addMenu.Actions().Add(createAction)
+	createAction := walk.NewAction()
+	createAction.SetText(fmt.Sprintf("Create &nCrypt Key…"))
+	createActionIcon, _ := loadSystemIcon("imageres", 77, 16)
+	createAction.SetImage(createActionIcon)
+	createAction.Triggered().Attach(kp.onCreateKey)
+	addMenu.Actions().Add(createAction)
 
 	createWebAuthN := walk.NewAction()
 	createWebAuthN.SetText(fmt.Sprintf("Create &WebAuthN Key…"))
@@ -221,11 +221,37 @@ func (kp *KeysPage) updateKeyView() {
 func (kp *KeysPage) onCreateKey() {
 	if config := runCreateKeyDialog(kp.Form(), kp.keyManager); config != nil {
 		go func() {
+
+			var algorithm string
+			var length int
+
+			switch config.Algorithm {
+			case "RSA-2048":
+				algorithm = "RSA"
+				length = 2048
+			case "RSA-4096":
+				algorithm = "RSA"
+				length = 4096
+			case "ECDSA-P256":
+				algorithm = "ECDSA_P256"
+				length = 0
+			case "ECDSA-P384":
+				algorithm = "ECDSA_P384"
+				length = 0
+			case "ECDSA-P521":
+				algorithm = "ECDSA_P521"
+				length = 0
+			default:
+				algorithm = "RSA"
+				length = 2048
+			}
+
 			_, err := kp.keyManager.CreateNewNCryptKey(config.Name,
 				config.ContainerName,
 				config.ProviderName,
-				config.Algorithm,
-				config.Length,
+				algorithm,
+				length,
+				config.Password,
 			)
 
 			if err != nil {

@@ -6,6 +6,7 @@ import (
 	"crypto"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha1"
 	"encoding/asn1"
 	"encoding/base64"
 	"encoding/binary"
@@ -27,6 +28,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"unsafe"
 )
 
@@ -711,7 +713,7 @@ func (km *KeyManager) getProviderHandle(providerName string) (uintptr, error) {
 	return pHandle, nil
 }
 
-func (km *KeyManager) CreateNewNCryptKey(keyName string, containerName string, providerName string, algorithm string, bits int) (*Key, error) {
+func (km *KeyManager) CreateNewNCryptKey(keyName string, containerName string, providerName string, algorithm string, bits int, password string) (*Key, error) {
 
 	if _, keyNameExists := km.Keys[keyName]; keyNameExists {
 		return nil, fmt.Errorf("key named %s already exists", keyName)
@@ -720,6 +722,10 @@ func (km *KeyManager) CreateNewNCryptKey(keyName string, containerName string, p
 	if containerName == "" {
 		containerUUID, _ := uuid.NewRandom()
 		containerName = containerUUID.String()
+	}
+
+	if providerName == ncrypt.ProviderMSSC {
+		return nil, fmt.Errorf("creating keys on smartcards is not supported")
 	}
 
 	algorithmOK := false
@@ -749,6 +755,31 @@ func (km *KeyManager) CreateNewNCryptKey(keyName string, containerName string, p
 		if err != nil {
 			ncrypt.NCryptFreeObject(kh)
 			return nil, fmt.Errorf("unable to set key NCRYPT_LENGTH_PROPERTY: %w", err)
+		}
+	}
+
+	if password != "" {
+		// If the provider is platform, set the property to a UI compatible one
+		utf16Str, err := syscall.UTF16FromString(password)
+		if err != nil {
+			return nil, err
+		}
+		bytesStr := make([]byte, len(utf16Str)*2)
+		j := 0
+		for _, utf16 := range utf16Str {
+			b := make([]byte, 2)
+			// LPCSTR (Windows' representation of utf16) is always little endian.
+			binary.LittleEndian.PutUint16(b, utf16)
+			bytesStr[j] = b[0]
+			bytesStr[j+1] = b[1]
+			j += 2
+		}
+
+		digest := sha1.Sum(bytesStr[:len(bytesStr)-2])
+
+		err = ncrypt.NCryptSetProperty(kh, ncrypt.NCRYPT_PCP_USAGE_AUTH_PROPERTY, digest[:], 0)
+		if err != nil {
+			fmt.Printf("error setting password: %v\n", err)
 		}
 	}
 
@@ -805,6 +836,11 @@ func (km *KeyManager) CreateNewNCryptKey(keyName string, containerName string, p
 	k.LoadCertificate("")
 
 	err = km.SaveConfig()
+
+	// empty the password so we are prompted on first use
+	if password != "" {
+		ncrypt.NCryptSetProperty(kh, ncrypt.NCRYPT_PIN_PROPERTY, "", 0)
+	}
 
 	return &k, err
 }

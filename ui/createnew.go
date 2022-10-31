@@ -15,6 +15,15 @@ var algorithmChoices = []string{
 	"ECDSA-P521",
 }
 
+type NewKeyConfig struct {
+	Name          string
+	Type          string
+	ContainerName string
+	ProviderName  string
+	Password      string
+	Algorithm     string
+}
+
 type CreateNewKey struct {
 	*walk.Dialog
 	nameEdit          *walk.LineEdit
@@ -25,10 +34,11 @@ type CreateNewKey struct {
 	saveButton   *walk.PushButton
 	cancelButton *walk.PushButton
 
-	config keyman.KeyConfig
+	config       NewKeyConfig
+	passwordEdit *walk.LineEdit
 }
 
-func runCreateKeyDialog(owner walk.Form, km *keyman.KeyManager) *keyman.KeyConfig {
+func runCreateKeyDialog(owner walk.Form, km *keyman.KeyManager) *NewKeyConfig {
 	dlg, err := newCreateKeyDialog(owner, km)
 	if showError(err, owner) {
 		return nil
@@ -79,6 +89,7 @@ func newCreateKeyDialog(owner walk.Form, km *keyman.KeyManager) (*CreateNewKey, 
 	}
 	layout.SetRange(dlg.nameEdit, walk.Rectangle{1, 0, 1, 1})
 	dlg.nameEdit.SetText(dlg.config.Name)
+	dlg.nameEdit.SetAlignment(walk.AlignHFarVCenter)
 
 	//Setup the containerName
 	containerLabel, err := walk.NewTextLabel(dlg)
@@ -94,37 +105,46 @@ func newCreateKeyDialog(owner walk.Form, km *keyman.KeyManager) (*CreateNewKey, 
 	}
 	layout.SetRange(dlg.containerNameEdit, walk.Rectangle{1, 1, 1, 1})
 	err = dlg.containerNameEdit.SetText(dlg.config.ContainerName)
+	dlg.containerNameEdit.SetAlignment(walk.AlignHFarVCenter)
+
+	//Setup the password field
+	passwordLabel, err := walk.NewTextLabel(dlg)
+	if err != nil {
+		return nil, err
+	}
+	layout.SetRange(passwordLabel, walk.Rectangle{0, 2, 1, 1})
+	passwordLabel.SetTextAlignment(walk.AlignHFarVCenter)
+	passwordLabel.SetText(fmt.Sprintf("&Password/PIN:"))
+
+	if dlg.passwordEdit, err = walk.NewLineEdit(dlg); err != nil {
+		return nil, err
+	}
+	layout.SetRange(dlg.passwordEdit, walk.Rectangle{1, 2, 1, 1})
+	err = dlg.passwordEdit.SetText(dlg.config.Password)
+	dlg.passwordEdit.SetPasswordMode(true)
+	dlg.passwordEdit.SetAlignment(walk.AlignHFarVCenter)
 
 	//Setup the algorithm list dropdown
 	algorithmLabel, err := walk.NewTextLabel(dlg)
 	if err != nil {
 		return nil, err
 	}
-	layout.SetRange(algorithmLabel, walk.Rectangle{0, 2, 1, 1})
+	layout.SetRange(algorithmLabel, walk.Rectangle{0, 3, 1, 1})
 	algorithmLabel.SetTextAlignment(walk.AlignHFarVCenter)
 	algorithmLabel.SetText(fmt.Sprintf("&Key Algorithm:"))
 	if dlg.algorithmDropdown, err = walk.NewDropDownBox(dlg); err != nil {
 		return nil, err
 	}
-	//ddl := DropdownList{
-	//	values: map[string]string{
-	//		"RSA-2048":   "RSA 2048",
-	//		"RSA-4096":   "RSA 4096",
-	//		"ECDSA_P256": "ECDSA P256",
-	//		"ECDSA_P384": "ECDSA P384",
-	//		"ECDSA_P521": "ECDSAP521",
-	//	},
-	//}
 
 	dlg.algorithmDropdown.SetModel(algorithmChoices)
 	dlg.algorithmDropdown.SetCurrentIndex(0)
-	layout.SetRange(dlg.algorithmDropdown, walk.Rectangle{1, 2, 1, 1})
+	layout.SetRange(dlg.algorithmDropdown, walk.Rectangle{1, 3, 1, 1})
 
 	buttonsContainer, err := walk.NewComposite(dlg)
 	if err != nil {
 		return nil, err
 	}
-	layout.SetRange(buttonsContainer, walk.Rectangle{0, 3, 2, 1})
+	layout.SetRange(buttonsContainer, walk.Rectangle{0, 4, 2, 1})
 	buttonsContainer.SetLayout(walk.NewHBoxLayout())
 	buttonsContainer.Layout().SetMargins(walk.Margins{})
 
@@ -153,37 +173,13 @@ func newCreateKeyDialog(owner walk.Form, km *keyman.KeyManager) (*CreateNewKey, 
 
 func (dlg *CreateNewKey) onSaveButtonClicked() {
 
-	var algorithm string
-	var length int
-	switch dlg.algorithmDropdown.Text() {
-	case "RSA-2048":
-		algorithm = "RSA"
-		length = 2048
-	case "RSA-4096":
-		algorithm = "RSA"
-		length = 4096
-	case "ECDSA-P256":
-		algorithm = "ECDSA_P256"
-		length = 0
-	case "ECDSA-P384":
-		algorithm = "ECDSA_P384"
-		length = 0
-	case "ECDSA-P521":
-		algorithm = "ECDSA_P521"
-		length = 0
-	default:
-		algorithm = "RSA"
-		length = 2048
-	}
-
-	dlg.config = keyman.KeyConfig{
+	dlg.config = NewKeyConfig{
 		Name:          dlg.nameEdit.Text(),
 		Type:          "NCRYPT",
-		Algorithm:     algorithm,
-		Length:        length,
+		Algorithm:     dlg.algorithmDropdown.Text(),
 		ContainerName: dlg.containerNameEdit.Text(),
-		ProviderName:  ncrypt.ProviderMSSC,
-		SSHPublicKey:  "",
+		Password:      dlg.passwordEdit.Text(),
+		ProviderName:  ncrypt.ProviderMSPlatform,
 	}
 
 	dlg.Accept()

@@ -7,27 +7,42 @@ nCryptAgent
 
 Ever been jealous of macOS users and their fancy Secure Enclave backed SSH Keys? Or wanted a nice GUI for managing keys like [Secretive](https://github.com/maxgoedjen/secretive)? nCryptAgent is your answer!
 
-Use any smart card as an SSH key source, and manage them using a nice-ish GUI! Don't have a physical smart card or security key like a Yubikey? No problem -- Create a Virtual Smart Card that is backed by your TPM for hardware backed keys!
+Use any smart card as an SSH key source, and manage them using a nice-ish GUI! Don't have a physical smart card or security key like a Yubikey? No problem -- Use the Microsoft Platform Crpyto Provider that is backed by your TPM for hardware backed keys!
 
 Use your WebAuthN authenticator as your SSH key with `sk-ssh-ed25519@openssh.com` and `sk-ecdsa-sha2-nistp256@openssh.com` key types.
 
 ## Features
+* Create TPM-backed hardware keys using the `Microsoft Platform Crypto Provider` (PCP)
 * Create and use OpenSSH SK keys without middleware
   * `sk-ssh-ed25519@openssh.com` and `sk-ecdsa-sha2-nistp256@openssh.com` key types, along with their matching certificates
-* Import and use nCrypt keys that are backed by hardware
-  * Windows TPM Smart Card
+* Import and use nCrypt keys that are backed by Smart Cards
   * Yubikeys
-  * Other smart cards
-* An acceptable GUI for managing your hardware-backed keys
+  * [Virtual Smart Cards](https://learn.microsoft.com/en-us/windows/security/identity-protection/virtual-smart-cards/virtual-smart-card-overview)
+  * ...any other smart card or PIV applet supported the `Microsoft Smart Card Key Storage Provider`
+* A nice-ish GUI for managing your hardware-backed keys
 * Supports multiple SSH Agent listeners:
   * OpenSSH for Windows
   * PuTTY/Pageant
   * WSL2
   * Cygwin/mSys/MinGW
 * Notifications so you know when your key is being used
-* Configurable PIN cache, so you don't have to re-enter your PIN for rapid successive key usage (smart cards only)
+* Configurable PIN/Password cache, so you don't have to re-enter your PIN/Password for rapid successive key usage (not available for WebAuthN keys)
 * OpenSSH Certificates
   * Adds support for OpenSSH certificates to PuTTY!
+
+## Getting Started
+
+* Download the latest release
+* Click `Create Key` and enter a key name and container name.
+  * Key name is a friendly descriptive name for the SSH Key
+  * Container name is the nCrypt key container identifier which will be used. You can enter a memorable name such as `MY_KEY` or something random like a UUID.
+* Select your Key Algorithm
+* Enter a password or PIN
+  * This can be empty if you wish to be a bit less secure
+* Click save
+* You now have a new SSH key, you can click the `Copy Key` button to copy the `authorized_keys` content to the clipboard and save it to the remote server. Alternatively you can copy the public key's path for use as a command line arg, or opening with another program.
+
+You can use the key by configuring your SSH client to use nCryptAgent as its SSH agent. For OpenSSH for Windows and PuTTY this should work automatically, as long as those listeners are enabled in the `Config` tab. For WSL2 and Cygwin, you will need to set your `SSH_AUTH_SOCK` environment variable. The commands for doing this are available in the `Config` tab.
 
 ## Getting Started with WebAuthN Security Keys
 
@@ -58,7 +73,7 @@ If you don't already have a certificate on your smart card, you'll need to creat
 
 Once you have a key added to nCryptAgent you can use it by configuring your SSH client to use nCryptAgent as its SSH agent. For OpenSSH for Windows and PuTTY this should work automatically, as long as those listeners are enabled in the `Config` tab. For WSL2 and Cygwin, you will need to set your `SSH_AUTH_SOCK` environment variable. The commands for doing this are available in the `Config` tab.
 
-## Using existing keys
+## Using existing Smart Card keys
 
 If you have already generated a key on your smart card (for instance you have existing credentials on your Yubikey) you can import that key by clicking on the dropdown next to `Create Key` and selecting `Add existing nCrypt key`. Select your smart card reader from the dropdown, then select your existing key and enter a name. Click save and your existing key will be ready for use.
 
@@ -74,7 +89,7 @@ Users without a physical key can create a TPM-backed smart card:
 * Ensure your TPM is enabled in BIOS or UEFI. Different manufacturers name the setting differently.
 * Open a command prompt
 * Run `tpmvscmgr create /name <Friendly_Name> /AdminKey DEFAULT /pin PROMPT /pinpolicy minlen 4 /generate` where `<Friendly_Name>` is a name you choose
-* You should now be able to add new keys in nCryptAgent
+* You can use `certreq` and `certutil` to load a certificate onto the smart card, after which you can `Add existing nCrypt Key` to import your Smart Card credentials into nCryptAgent
 
 You can delete your TPM smart card with:
 * `tpmvscmgr.exe destroy /instance <DeviceID>` where `<DeviceID>` is the id of the tpm smart card. If you only have one tpm smart card, this will be `ROOT\SMARTCARDREADER\0000`

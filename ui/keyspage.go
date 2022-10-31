@@ -3,7 +3,7 @@ package ui
 import (
 	"fmt"
 	"github.com/lxn/walk"
-	"ncryptagent/ncrypt"
+	"ncryptagent/keyman"
 	"ncryptagent/webauthn"
 )
 
@@ -19,10 +19,10 @@ type KeysPage struct {
 
 	fillerContainer     *walk.Composite
 	currentKeyContainer *walk.Composite
-	keyManager          *ncrypt.KeyManager
+	keyManager          *keyman.KeyManager
 }
 
-func NewKeysPage(keyManager *ncrypt.KeyManager) (*KeysPage, error) {
+func NewKeysPage(keyManager *keyman.KeyManager) (*KeysPage, error) {
 	var err error
 	var disposables walk.Disposables
 	defer disposables.Treat()
@@ -245,9 +245,9 @@ func (kp *KeysPage) onCreateWebAuthNKey() {
 			coseHash := webauthn.HASH_ALGORITHM_SHA_256
 
 			switch config.Algorithm {
-			case ncrypt.OPENSSH_SK_ECDSA:
+			case keyman.OPENSSH_SK_ECDSA:
 				coseAlgorithm = webauthn.COSE_ALGORITHM_ECDSA_P256_WITH_SHA256
-			case ncrypt.OPENSSH_SK_ED25519:
+			case keyman.OPENSSH_SK_ED25519:
 				coseAlgorithm = webauthn.COSE_ALGORITHM_EDDSA_ED25519
 			}
 
@@ -296,7 +296,7 @@ func (kp *KeysPage) onDelete() {
 
 		if len(kp.keyManager.Keys) == 0 {
 			kp.keyView.SetKey(nil)
-			//kp.keyView.SetKey(&ncrypt.Key{
+			//kp.keyView.SetKey(&keyman.Key{
 			//	Name:                 "No Keys",
 			//	Type:                 "None",
 			//	SSHPublicKey:         nil,

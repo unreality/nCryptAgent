@@ -304,6 +304,11 @@ func UintptrToBytes(u uintptr, l uint32) []byte {
 
 }
 
+func LPCWSTR(s string) *uint16 {
+	w, _ := syscall.UTF16PtrFromString(s)
+	return w
+}
+
 func GetApiVersionNumber() (int32, error) {
 	r, _, err := procWebAuthNGetApiVersionNumber.Call()
 

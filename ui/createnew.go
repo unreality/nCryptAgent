@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"github.com/lxn/walk"
+	"ncryptagent/keyman"
 	"ncryptagent/ncrypt"
 )
 
@@ -24,10 +25,10 @@ type CreateNewKey struct {
 	saveButton   *walk.PushButton
 	cancelButton *walk.PushButton
 
-	config ncrypt.KeyConfig
+	config keyman.KeyConfig
 }
 
-func runCreateKeyDialog(owner walk.Form, km *ncrypt.KeyManager) *ncrypt.KeyConfig {
+func runCreateKeyDialog(owner walk.Form, km *keyman.KeyManager) *keyman.KeyConfig {
 	dlg, err := newCreateKeyDialog(owner, km)
 	if showError(err, owner) {
 		return nil
@@ -40,7 +41,7 @@ func runCreateKeyDialog(owner walk.Form, km *ncrypt.KeyManager) *ncrypt.KeyConfi
 	return nil
 }
 
-func newCreateKeyDialog(owner walk.Form, km *ncrypt.KeyManager) (*CreateNewKey, error) {
+func newCreateKeyDialog(owner walk.Form, km *keyman.KeyManager) (*CreateNewKey, error) {
 	var err error
 	var disposables walk.Disposables
 	defer disposables.Treat()
@@ -175,7 +176,7 @@ func (dlg *CreateNewKey) onSaveButtonClicked() {
 		length = 2048
 	}
 
-	dlg.config = ncrypt.KeyConfig{
+	dlg.config = keyman.KeyConfig{
 		Name:          dlg.nameEdit.Text(),
 		Type:          "NCRYPT",
 		Algorithm:     algorithm,

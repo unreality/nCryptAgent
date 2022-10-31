@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"golang.org/x/crypto/ssh/agent"
 	"io"
-	"ncryptagent/ncrypt/listeners/pageant"
+	"ncryptagent/keyman/listeners/pageant"
 	"os"
 	"sync"
 )

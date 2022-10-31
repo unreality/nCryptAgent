@@ -8,7 +8,7 @@ package ui
 import (
 	"github.com/lxn/walk"
 	"github.com/lxn/win"
-	"ncryptagent/ncrypt"
+	"ncryptagent/keyman"
 )
 
 // ListModel is a struct to store the currently known keys to the GUI, suitable as a model for a walk.TableView.
@@ -16,7 +16,7 @@ type ListModel struct {
 	walk.TableModelBase
 	walk.SorterBase
 
-	keys []*ncrypt.Key
+	keys []*keyman.Key
 }
 
 //var cachedListViewIconsForWidthAndState = make(map[widthAndState]*walk.Bitmap)
@@ -43,10 +43,10 @@ func (t *ListModel) Value(row, col int) interface{} {
 type ListView struct {
 	*walk.TableView
 	model      *ListModel
-	keyManager *ncrypt.KeyManager
+	keyManager *keyman.KeyManager
 }
 
-func NewListView(parent walk.Container, keyManager *ncrypt.KeyManager) (*ListView, error) {
+func NewListView(parent walk.Container, keyManager *keyman.KeyManager) (*ListView, error) {
 	var disposables walk.Disposables
 	defer disposables.Treat()
 
@@ -90,7 +90,7 @@ func NewListView(parent walk.Container, keyManager *ncrypt.KeyManager) (*ListVie
 //    tv.TableView.Dispose()
 //}
 
-func (tv *ListView) CurrentKey() *ncrypt.Key {
+func (tv *ListView) CurrentKey() *keyman.Key {
 	idx := tv.CurrentIndex()
 	if idx == -1 {
 		return nil
@@ -169,7 +169,7 @@ func (tv *ListView) StyleCell(style *walk.CellStyle) {
 
 func (tv *ListView) Load(asyncUI bool) {
 
-	keys := make([]*ncrypt.Key, 0, len(tv.keyManager.Keys))
+	keys := make([]*keyman.Key, 0, len(tv.keyManager.Keys))
 
 	for _, k := range tv.keyManager.Keys {
 		keys = append(keys, k)

@@ -3,12 +3,12 @@ package ui
 import (
 	"fmt"
 	"github.com/lxn/walk"
-	"ncryptagent/ncrypt"
+	"ncryptagent/keyman"
 )
 
 var algorithmChoicesWebAuthN = []string{
-	ncrypt.OPENSSH_SK_ECDSA,
-	ncrypt.OPENSSH_SK_ED25519,
+	keyman.OPENSSH_SK_ECDSA,
+	keyman.OPENSSH_SK_ED25519,
 }
 
 type CreateNewWebAuthNKey struct {
@@ -20,10 +20,10 @@ type CreateNewWebAuthNKey struct {
 	saveButton   *walk.PushButton
 	cancelButton *walk.PushButton
 
-	config ncrypt.KeyConfig
+	config keyman.KeyConfig
 }
 
-func runCreateNewWebAuthNKeyDialog(owner walk.Form, km *ncrypt.KeyManager) *ncrypt.KeyConfig {
+func runCreateNewWebAuthNKeyDialog(owner walk.Form, km *keyman.KeyManager) *keyman.KeyConfig {
 	dlg, err := newCreateNewWebAuthNKeyDialog(owner, km)
 	if showError(err, owner) {
 		return nil
@@ -36,7 +36,7 @@ func runCreateNewWebAuthNKeyDialog(owner walk.Form, km *ncrypt.KeyManager) *ncry
 	return nil
 }
 
-func newCreateNewWebAuthNKeyDialog(owner walk.Form, km *ncrypt.KeyManager) (*CreateNewWebAuthNKey, error) {
+func newCreateNewWebAuthNKeyDialog(owner walk.Form, km *keyman.KeyManager) (*CreateNewWebAuthNKey, error) {
 	var err error
 	var disposables walk.Disposables
 	defer disposables.Treat()
@@ -124,7 +124,7 @@ func newCreateNewWebAuthNKeyDialog(owner walk.Form, km *ncrypt.KeyManager) (*Cre
 
 func (dlg *CreateNewWebAuthNKey) onSaveButtonClicked() {
 
-	dlg.config = ncrypt.KeyConfig{
+	dlg.config = keyman.KeyConfig{
 		Name:          dlg.nameEdit.Text(),
 		Type:          "WEBAUTHN",
 		Algorithm:     dlg.algorithmDropdown.Text(),

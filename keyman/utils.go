@@ -1,4 +1,4 @@
-package ncrypt
+package keyman
 
 import (
 	"bytes"
@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math/big"
+	"ncryptagent/ncrypt"
 )
 
 func unmarshalRSA(buf []byte) (*rsa.PublicKey, error) {
@@ -27,7 +28,7 @@ func unmarshalRSA(buf []byte) (*rsa.PublicKey, error) {
 		return nil, err
 	}
 
-	if header.Magic != rsa1Magic {
+	if header.Magic != ncrypt.RSA1Magic {
 		return nil, fmt.Errorf("invalid header magic %x", header.Magic)
 	}
 
@@ -77,7 +78,7 @@ func unmarshalECC(buf []byte, curve elliptic.Curve) (*ecdsa.PublicKey, error) {
 		return nil, err
 	}
 
-	if expectedMagic, ok := curveMagicMap[curve.Params().Name]; ok {
+	if expectedMagic, ok := ncrypt.CurveMagicMap[curve.Params().Name]; ok {
 		if expectedMagic != header.Magic {
 			return nil, fmt.Errorf("elliptic curve blob did not contain expected magic")
 		}
@@ -112,7 +113,7 @@ func unmarshalECC(buf []byte, curve elliptic.Curve) (*ecdsa.PublicKey, error) {
 }
 
 func getPublicKey(kh uintptr) (crypto.PublicKey, error) {
-	algGroup, err := NCryptGetPropertyStr(kh, NCRYPT_ALGORITHM_GROUP_PROPERTY)
+	algGroup, err := ncrypt.NCryptGetPropertyStr(kh, ncrypt.NCRYPT_ALGORITHM_GROUP_PROPERTY)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get NCRYPT_ALGORITHM_GROUP_PROPERTY: %w", err)
 	}
@@ -120,20 +121,20 @@ func getPublicKey(kh uintptr) (crypto.PublicKey, error) {
 	var pub crypto.PublicKey
 	switch algGroup {
 	case "ECDSA":
-		buf, err := NCryptExportKey(kh, BCRYPT_ECCPUBLIC_BLOB)
+		buf, err := ncrypt.NCryptExportKey(kh, ncrypt.BCRYPT_ECCPUBLIC_BLOB)
 		if err != nil {
 			return nil, fmt.Errorf("failed to export ECC public key: %w", err)
 		}
-		curveName, err := NCryptGetPropertyStr(kh, NCRYPT_ALGORITHM_PROPERTY)
+		curveName, err := ncrypt.NCryptGetPropertyStr(kh, ncrypt.NCRYPT_ALGORITHM_PROPERTY)
 		if err != nil {
 			return nil, fmt.Errorf("failed to retrieve ECC curve name: %w", err)
 		}
-		pub, err = unmarshalECC(buf, curveNames[curveName])
+		pub, err = unmarshalECC(buf, ncrypt.CurveNames[curveName])
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal ECC public key: %w", err)
 		}
 	case "RSA":
-		buf, err := NCryptExportKey(kh, BCRYPT_RSAPUBLIC_BLOB)
+		buf, err := ncrypt.NCryptExportKey(kh, ncrypt.BCRYPT_RSAPUBLIC_BLOB)
 		if err != nil {
 			return nil, fmt.Errorf("failed to export %v public key: %w", algGroup, err)
 		}

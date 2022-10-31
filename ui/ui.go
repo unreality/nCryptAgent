@@ -7,7 +7,7 @@ package ui
 
 import (
 	"fmt"
-	"ncryptagent/ncrypt"
+	"ncryptagent/keyman"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -45,7 +45,7 @@ func RunUI() {
 	}
 	configPath := filepath.Join(homeDir, "nCryptAgent/config.json")
 
-	km, err := ncrypt.NewKeyManager(configPath)
+	km, err := keyman.NewKeyManager(configPath)
 	if err != nil {
 		showErrorCustom(nil, "Unable to load KeyManager", fmt.Sprintf("%s", err))
 		return
@@ -74,7 +74,7 @@ func RunUI() {
 	}
 
 	// Setup a chan to receive notification messages
-	notifyChan := make(chan ncrypt.NotifyMsg)
+	notifyChan := make(chan keyman.NotifyMsg)
 	quitChan := make(chan int)
 
 	go func() {

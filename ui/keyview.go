@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/lxn/walk"
 	"github.com/lxn/win"
-	"ncryptagent/ncrypt"
+	"ncryptagent/keyman"
 	"strings"
 )
 
@@ -61,14 +61,14 @@ type keyInfoView struct {
 
 	copyPublicKeyLocation *keyActionsButtonLine
 	lines                 []widgetsLine
-	currentKey            *ncrypt.Key
+	currentKey            *keyman.Key
 }
 
 func (kiv *keyInfoView) widgetsLines() []widgetsLine {
 	return kiv.lines
 }
 
-func (kiv *keyInfoView) apply(ki *ncrypt.Key) {
+func (kiv *keyInfoView) apply(ki *keyman.Key) {
 	kiv.currentKey = ki
 	kiv.keyType.show(ki.Type)
 	kiv.keyAlgorithm.show(ki.SSHPublicKeyType())
@@ -83,7 +83,12 @@ func (kiv *keyInfoView) apply(ki *ncrypt.Key) {
 	} else {
 		kiv.sshCertificateSerial.hide()
 	}
-	kiv.keyContainer.show(ki.ContainerName())
+
+	if ki.ContainerName() != "" {
+		kiv.keyContainer.show(ki.ContainerName())
+	} else {
+		kiv.keyContainer.hide()
+	}
 	kiv.sshPublicKeyLocation.show(ki.SSHPublicKeyLocation)
 
 	if ki.LoadError != nil {
@@ -156,7 +161,7 @@ type KeyView struct {
 	*walk.ScrollView
 	name       *walk.GroupBox
 	keyInfo    *keyInfoView
-	currentKey *ncrypt.Key
+	currentKey *keyman.Key
 }
 
 func NewKeyView(parent walk.Container) (*KeyView, error) {
@@ -191,7 +196,7 @@ func NewKeyView(parent walk.Container) (*KeyView, error) {
 	return kv, nil
 }
 
-func (kv *KeyView) SetKey(k *ncrypt.Key) {
+func (kv *KeyView) SetKey(k *keyman.Key) {
 	kv.name.SetVisible(k != nil)
 	if k == nil {
 		return
@@ -220,7 +225,7 @@ func (lsl *labelStatusLine) widgets() (walk.Widget, walk.Widget) {
 	return lsl.label, lsl.statusComposite
 }
 
-func (lsl *labelStatusLine) update(k ncrypt.Key) {
+func (lsl *labelStatusLine) update(k keyman.Key) {
 	var icon *walk.Icon
 	var err error
 

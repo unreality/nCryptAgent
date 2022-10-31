@@ -1,4 +1,4 @@
-package ncrypt
+package keyman
 
 import (
 	"bytes"
@@ -18,7 +18,8 @@ import (
 	"golang.org/x/crypto/ssh"
 	"io/ioutil"
 	"math/big"
-	"ncryptagent/ncrypt/listeners"
+	"ncryptagent/keyman/listeners"
+	"ncryptagent/ncrypt"
 	"ncryptagent/webauthn"
 	"os"
 	"os/user"
@@ -110,18 +111,32 @@ type Key struct {
 	}
 }
 
-func (k *Key) TakeFocus() {
-	hwnd := win.HWND(k.hwnd)
+func (k *Key) TakeFocus() bool {
 
-	k.focusData.victimHWND = win.GetForegroundWindow()
-	k.focusData.myID = win.GetCurrentThreadId()
-	k.focusData.victimID = win.GetWindowThreadProcessId(k.focusData.victimHWND, nil)
-	win.AttachThreadInput(int32(k.focusData.victimID), int32(k.focusData.myID), true)
-	win.ShowWindow(hwnd, win.SW_NORMAL)
-	win.SetForegroundWindow(hwnd)
-	win.SetFocus(hwnd)
-	win.SetActiveWindow(hwnd)
-	win.AttachThreadInput(int32(k.focusData.victimID), int32(k.focusData.myID), false)
+	if k.hwnd != 0 {
+		if k.Type == "NCRYPT" && k.signer != nil {
+			if ncryptSigner, ok := (*k.signer).(*Signer); ok {
+				if ncryptSigner.timeractive {
+					return false
+				}
+			}
+		}
+		hwnd := win.HWND(k.hwnd)
+
+		k.focusData.victimHWND = win.GetForegroundWindow()
+		k.focusData.myID = win.GetCurrentThreadId()
+		k.focusData.victimID = win.GetWindowThreadProcessId(k.focusData.victimHWND, nil)
+		win.AttachThreadInput(int32(k.focusData.victimID), int32(k.focusData.myID), true)
+		win.ShowWindow(hwnd, win.SW_NORMAL)
+		win.SetForegroundWindow(hwnd)
+		win.SetFocus(hwnd)
+		win.SetActiveWindow(hwnd)
+		win.AttachThreadInput(int32(k.focusData.victimID), int32(k.focusData.myID), false)
+
+		return true
+	}
+
+	return false
 }
 
 func (k *Key) ReturnFocus() {
@@ -135,7 +150,7 @@ func (k *Key) ReturnFocus() {
 }
 
 func (k *Key) AlgorithmReadable() string {
-	if k.algorithm == ALG_RSA {
+	if k.algorithm == ncrypt.ALG_RSA {
 		return fmt.Sprintf("%s-%d", k.algorithm, k.length)
 	} else {
 		return k.algorithm
@@ -242,14 +257,15 @@ func (k *Key) ContainerName() string {
 
 func (k *Key) Close() {
 	if k.handle != 0 {
-		NCryptFreeObject(k.handle)
+		ncrypt.NCryptFreeObject(k.handle)
 	}
 	k.handle = 0
 }
 
 func (k *Key) SignSSH(b []byte) (*ssh.Signature, error) {
-	k.TakeFocus()
-	defer k.ReturnFocus()
+	if k.TakeFocus() {
+		defer k.ReturnFocus()
+	}
 
 	if k.Type == "NCRYPT" && k.signer != nil {
 		sshSigner, err := ssh.NewSignerFromSigner(*k.signer)
@@ -272,8 +288,9 @@ func (k *Key) SignSSH(b []byte) (*ssh.Signature, error) {
 }
 
 func (k *Key) SignWithAlgorithmSSH(b []byte, algorithm string) (*ssh.Signature, error) {
-	k.TakeFocus()
-	defer k.ReturnFocus()
+	if k.TakeFocus() {
+		defer k.ReturnFocus()
+	}
 
 	if k.Type == "NCRYPT" && k.signer != nil {
 		sshSigner, err := ssh.NewSignerFromSigner(*k.signer)
@@ -336,7 +353,7 @@ func (k *Key) signWebAuthN(signData []byte) (*ssh.Signature, error) {
 		Version:              webauthn.CLIENT_DATA_CURRENT_VERSION,
 		ClientDataJSONLength: uint32(len(signData)),
 		ClientDataJSON:       uintptr(unsafe.Pointer(&signData[0])),
-		HashAlgId:            wide(webauthn.HASH_ALGORITHM_SHA_256),
+		HashAlgId:            webauthn.LPCWSTR(webauthn.HASH_ALGORITHM_SHA_256),
 	}
 
 	credentials := []webauthn.CREDENTIAL{
@@ -344,7 +361,7 @@ func (k *Key) signWebAuthN(signData []byte) (*ssh.Signature, error) {
 			Version:        webauthn.CREDENTIAL_CURRENT_VERSION,
 			IdLen:          uint32(len(keyHandle)),
 			Id:             uintptr(unsafe.Pointer(&keyHandle[0])),
-			CredentialType: wide(webauthn.CREDENTIAL_TYPE_PUBLIC_KEY),
+			CredentialType: webauthn.LPCWSTR(webauthn.CREDENTIAL_TYPE_PUBLIC_KEY),
 		},
 	}
 
@@ -410,9 +427,10 @@ func (k *Key) signWebAuthN(signData []byte) (*ssh.Signature, error) {
 }
 
 func (k *Key) SetHWND(hwnd uintptr) {
-	if k.Type == "NCRYPT" && k.signer != nil {
-		if ncryptSigner, ok := (*k.signer).(*Signer); ok {
-			ncryptSigner.SetHwnd(hwnd)
+	if k.Type == "NCRYPT" && k.handle != 0 {
+		err := ncrypt.NCryptSetProperty(k.handle, ncrypt.NCRYPT_WINDOW_HANDLE_PROPERTY, hwnd, 0)
+		if err != nil {
+			fmt.Printf("Setting NCryptWindow handle failed: %v", err)
 		}
 	}
 	k.hwnd = hwnd
@@ -535,7 +553,7 @@ func NewKeyManager(configPath string) (*KeyManager, error) {
 
 		if k.Type == "NCRYPT" {
 			if k.ProviderName == "" {
-				k.ProviderName = ProviderMSSC
+				k.ProviderName = ncrypt.ProviderMSSC
 			}
 
 			_, err = km.getProviderHandle(k.ProviderName)
@@ -609,21 +627,21 @@ func (km *KeyManager) LoadNCryptKey(kc *KeyConfig) (*Key, error) {
 	}
 
 	// silently determine if the key is available
-	keyHandle, err := NCryptOpenKey(providerHandle, kc.ContainerName, 0, NCRYPT_SILENT_FLAG)
+	keyHandle, err := ncrypt.NCryptOpenKey(providerHandle, kc.ContainerName, 0, ncrypt.NCRYPT_SILENT_FLAG)
 	if err != nil {
 		return nil, err
 	}
 
 	// close and reopen the handle allowing user interaction now
-	NCryptFreeObject(keyHandle)
-	keyHandle, err = NCryptOpenKey(providerHandle, kc.ContainerName, 0, 0)
+	ncrypt.NCryptFreeObject(keyHandle)
+	keyHandle, err = ncrypt.NCryptOpenKey(providerHandle, kc.ContainerName, 0, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	algorithmName, err := NCryptGetPropertyStr(keyHandle, NCRYPT_ALGORITHM_PROPERTY)
+	algorithmName, err := ncrypt.NCryptGetPropertyStr(keyHandle, ncrypt.NCRYPT_ALGORITHM_PROPERTY)
 	if err != nil {
-		NCryptFreeObject(keyHandle)
+		ncrypt.NCryptFreeObject(keyHandle)
 		return nil, err
 	}
 
@@ -640,13 +658,13 @@ func (km *KeyManager) LoadNCryptKey(kc *KeyConfig) (*Key, error) {
 
 	signer, err := newNCryptSigner(keyHandle, km.config.PinTimeout)
 	if err != nil {
-		NCryptFreeObject(keyHandle)
+		ncrypt.NCryptFreeObject(keyHandle)
 		return nil, err
 	}
 
 	sshPub, err := ssh.NewPublicKey(signer.Public())
 	if err != nil {
-		NCryptFreeObject(keyHandle)
+		ncrypt.NCryptFreeObject(keyHandle)
 		return nil, err
 	}
 
@@ -682,7 +700,7 @@ func (km *KeyManager) getProviderHandle(providerName string) (uintptr, error) {
 	var err error
 
 	if pHandle, handleOpen = km.providerHandles[providerName]; !handleOpen {
-		pHandle, err = NCryptOpenStorageProvider(providerName)
+		pHandle, err = ncrypt.NCryptOpenStorageProvider(providerName)
 		if err != nil {
 			return 0, fmt.Errorf("unable to open provider %s: %w", providerName, err)
 		}
@@ -705,7 +723,7 @@ func (km *KeyManager) CreateNewNCryptKey(keyName string, containerName string, p
 	}
 
 	algorithmOK := false
-	for _, i := range AVAILABLE_ALGORITHMS {
+	for _, i := range ncrypt.AVAILABLE_ALGORITHMS {
 		if i == algorithm {
 			algorithmOK = true
 			break
@@ -720,41 +738,41 @@ func (km *KeyManager) CreateNewNCryptKey(keyName string, containerName string, p
 		return nil, err
 	}
 
-	kh, err := NCryptCreatePersistedKey(providerHandle, containerName, algorithm, 0, 0)
+	kh, err := ncrypt.NCryptCreatePersistedKey(providerHandle, containerName, algorithm, 0, 0)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create persisted key: %w", err)
 	}
 
-	if algorithm == ALG_RSA {
-		err = NCryptSetProperty(kh, NCRYPT_LENGTH_PROPERTY, uint32(bits), 0)
+	if algorithm == ncrypt.ALG_RSA {
+		err = ncrypt.NCryptSetProperty(kh, ncrypt.NCRYPT_LENGTH_PROPERTY, uint32(bits), 0)
 
 		if err != nil {
-			NCryptFreeObject(kh)
+			ncrypt.NCryptFreeObject(kh)
 			return nil, fmt.Errorf("unable to set key NCRYPT_LENGTH_PROPERTY: %w", err)
 		}
 	}
 
-	err = NCryptFinalizeKey(kh, 0)
+	err = ncrypt.NCryptFinalizeKey(kh, 0)
 	if err != nil {
-		NCryptFreeObject(kh)
+		ncrypt.NCryptFreeObject(kh)
 		return nil, fmt.Errorf("unable to finalize key: %w", err)
 	}
 
-	uc, err := NCryptGetPropertyStr(kh, NCRYPT_UNIQUE_NAME_PROPERTY)
+	uc, err := ncrypt.NCryptGetPropertyStr(kh, ncrypt.NCRYPT_UNIQUE_NAME_PROPERTY)
 	if err != nil {
-		NCryptFreeObject(kh)
+		ncrypt.NCryptFreeObject(kh)
 		return nil, fmt.Errorf("unable to retrieve NCRYPT_UNIQUE_NAME_PROPERTY: %w", err)
 	}
 
 	signer, err := newNCryptSigner(kh, km.config.PinTimeout)
 	if err != nil {
-		NCryptFreeObject(kh)
+		ncrypt.NCryptFreeObject(kh)
 		return nil, err
 	}
 
 	sshPub, err := ssh.NewPublicKey(signer.Public())
 	if err != nil {
-		NCryptFreeObject(kh)
+		ncrypt.NCryptFreeObject(kh)
 		return nil, err
 	}
 
@@ -813,8 +831,8 @@ func (km *KeyManager) CreateNewWebAuthNKey(keyName string, application string, c
 
 	entity_info := webauthn.RP_ENTITY_INFORMATION{
 		Version: webauthn.RP_ENTITY_INFORMATION_CURRENT_VERSION,
-		Id:      wide(application),
-		Name:    wide("nCrypt Agent"),
+		Id:      webauthn.LPCWSTR(application),
+		Name:    webauthn.LPCWSTR("nCrypt Agent"),
 		Icon:    nil,
 	}
 
@@ -822,15 +840,15 @@ func (km *KeyManager) CreateNewWebAuthNKey(keyName string, application string, c
 		Version:     webauthn.USER_ENTITY_INFORMATION_CURRENT_VERSION,
 		IdLen:       uint32(len(userId)),
 		Id:          uintptr(unsafe.Pointer(&userId[0])),
-		Name:        wide(userName),
+		Name:        webauthn.LPCWSTR(userName),
 		Icon:        nil,
-		DisplayName: wide(userName),
+		DisplayName: webauthn.LPCWSTR(userName),
 	}
 
 	cose_parameter := []webauthn.COSE_CREDENTIAL_PARAMETER{
 		{
 			Version:        webauthn.COSE_CREDENTIAL_PARAMETER_CURRENT_VERSION,
-			CredentialType: wide(webauthn.CREDENTIAL_TYPE_PUBLIC_KEY),
+			CredentialType: webauthn.LPCWSTR(webauthn.CREDENTIAL_TYPE_PUBLIC_KEY),
 			Alg:            coseAlgorithm,
 		},
 	}
@@ -846,7 +864,7 @@ func (km *KeyManager) CreateNewWebAuthNKey(keyName string, application string, c
 		Version:              webauthn.CLIENT_DATA_CURRENT_VERSION,
 		ClientDataJSONLength: uint32(len(ssh_challenge_data)),
 		ClientDataJSON:       uintptr(unsafe.Pointer(&ssh_challenge_data[0])),
-		HashAlgId:            wide(coseHash),
+		HashAlgId:            webauthn.LPCWSTR(coseHash),
 	}
 
 	credential_options := webauthn.AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS_V3{
@@ -1048,7 +1066,7 @@ func (km *KeyManager) Close() {
 
 	for _, p := range km.providerHandles {
 		if p != 0 {
-			NCryptFreeObject(p)
+			ncrypt.NCryptFreeObject(p)
 		}
 	}
 
@@ -1089,7 +1107,7 @@ func (km *KeyManager) DeleteKey(keyToDelete *Key, deleteFromKeystore bool) error
 	fmt.Printf("Deleting %s - fomrKeystore %v\n", keyToDelete.Name, deleteFromKeystore)
 
 	if deleteFromKeystore && keyToDelete.Type == "NCRYPT" {
-		err := NCryptDeleteKey(keyToDelete.handle, 0)
+		err := ncrypt.NCryptDeleteKey(keyToDelete.handle, 0)
 
 		if err != nil {
 			fmt.Printf("err: %s", err)

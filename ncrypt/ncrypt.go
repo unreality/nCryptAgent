@@ -27,7 +27,7 @@ const (
 	NCRYPT_READER_PROPERTY          = "SmartCardReader"
 	NCRYPT_ALGORITHM_PROPERTY       = "Algorithm Name"
 	NCRYPT_WINDOW_HANDLE_PROPERTY   = "HWND Handle"
-
+	NCRYPT_PCP_USAGE_AUTH_PROPERTY  = "PCP_USAGEAUTH"
 	// Key Storage Flags
 	NCRYPT_MACHINE_KEY_FLAG = 0x00000001
 	NCRYPT_SILENT_FLAG      = 0x40
@@ -106,6 +106,9 @@ var (
 		ALG_ECDSA_P256: elliptic.P256(),
 		ALG_ECDSA_P384: elliptic.P384(),
 		ALG_ECDSA_P521: elliptic.P521(),
+		"nistP256":     elliptic.P256(), // BCRYPT_ECC_CURVE_NISTP256
+		"nistP384":     elliptic.P384(), // BCRYPT_ECC_CURVE_NISTP384
+		"nistP521":     elliptic.P521(), // BCRYPT_ECC_CURVE_NISTP521
 	}
 
 	CurveMagicMap = map[string]uint32{
@@ -323,6 +326,21 @@ func NCryptSetProperty(keyHandle uintptr, propertyName string, propertyValue int
 			uintptr(unsafe.Pointer(wide(propertyName))),
 			uintptr(unsafe.Pointer(&ptrVal)),
 			unsafe.Sizeof(ptrVal),
+			uintptr(flags))
+		if r != 0 {
+			return fmt.Errorf("NCryptSetProperty \"%v\" returned %v: %v", propertyName, errNoToStr(uint32(r)), err)
+		}
+
+		return nil
+	}
+
+	if byteVal, isBytes := propertyValue.([]byte); isBytes {
+		fmt.Printf("Setting bytes\n")
+		r, _, err := procNCryptSetProperty.Call(
+			keyHandle,
+			uintptr(unsafe.Pointer(wide(propertyName))),
+			uintptr(unsafe.Pointer(&byteVal[0])),
+			uintptr(len(byteVal)),
 			uintptr(flags))
 		if r != 0 {
 			return fmt.Errorf("NCryptSetProperty \"%v\" returned %v: %v", propertyName, errNoToStr(uint32(r)), err)

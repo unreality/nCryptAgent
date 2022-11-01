@@ -125,20 +125,20 @@ func getPublicKey(kh uintptr) (crypto.PublicKey, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to export ECC public key: %w", err)
 		}
-		curveName, err := ncrypt.NCryptGetPropertyStr(kh, ncrypt.NCRYPT_ALGORITHM_PROPERTY)
+		curveName, err := ncrypt.NCryptGetPropertyStr(kh, ncrypt.NCRYPT_ECC_CURVE_NAME_PROPERTY)
 		if err != nil {
-			return nil, fmt.Errorf("failed to retrieve ECC curve name: %w", err)
-		}
-
-		if _, ok := ncrypt.CurveNames[curveName]; !ok {
-			fmt.Printf("Curve name not found, attempting to retrieve NCRYPT_ECC_CURVE_NAME_PROPERTY")
-			curveName, err = ncrypt.NCryptGetPropertyStr(kh, ncrypt.NCRYPT_ECC_CURVE_NAME_PROPERTY)
+			// The smart card provider doesn't have the curve name property set, attempt to get it from
+			// algorithm property
+			curveName, err = ncrypt.NCryptGetPropertyStr(kh, ncrypt.NCRYPT_ALGORITHM_PROPERTY)
 			if err != nil {
 				return nil, fmt.Errorf("failed to retrieve ECC curve name: %w", err)
 			}
 		}
 
-		fmt.Printf("CurveName is %s\n", curveName)
+		if _, ok := ncrypt.CurveNames[curveName]; !ok {
+			return nil, fmt.Errorf("curveName %s not found in curvenames map", curveName)
+		}
+
 		pub, err = unmarshalECC(buf, ncrypt.CurveNames[curveName])
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal ECC public key: %w", err)

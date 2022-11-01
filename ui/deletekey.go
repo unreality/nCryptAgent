@@ -59,7 +59,7 @@ func newDeleteKeyDialog(owner walk.Form, keyName string) (*DeleteKey, error) {
 	}
 	layout.SetRange(dlg.confirmLabel, walk.Rectangle{0, 0, 2, 1})
 	dlg.confirmLabel.SetTextAlignment(walk.AlignHNearVCenter)
-	dlg.confirmLabel.SetText(fmt.Sprintf("Are you sure you want to delete key \"%s\"", keyName))
+	dlg.confirmLabel.SetText(fmt.Sprintf("Are you sure you want to delete key \"%s\"?", keyName))
 	dlg.confirmLabel.SetVisible(true)
 
 	deleteLabel, err := walk.NewTextLabel(dlg)

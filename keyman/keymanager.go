@@ -69,14 +69,15 @@ type sshPrivateKeySKED25519 struct {
 }
 
 type KeyConfig struct {
-	Name          string `json:"name"`
-	Type          string `json:"type"`
-	ContainerName string `json:"containerName"`
-	ProviderName  string `json:"providerName,omitempty"`
-	SSHPublicKey  string `json:"sshPublicKey,omitempty"`
-	SKPrivateHalf string `json:"skPrivateHalf,omitempty"`
-	Algorithm     string `json:"algorithm,omitempty"`
-	Length        int    `json:"length,omitempty"`
+	Name           string `json:"name"`
+	Type           string `json:"type"`
+	ContainerName  string `json:"containerName"`
+	ProviderName   string `json:"providerName,omitempty"`
+	SSHPublicKey   string `json:"sshPublicKey,omitempty"`
+	SKPrivateHalf  string `json:"skPrivateHalf,omitempty"`
+	Algorithm      string `json:"algorithm,omitempty"`
+	Length         int    `json:"length,omitempty"`
+	VerifyRequired bool   `json:"verifyRequired,omitempty"`
 }
 
 type KeyManagerConfig struct {
@@ -162,6 +163,11 @@ func (k *Key) AlgorithmReadable() string {
 func (k *Key) SSHPublicKeyString() string {
 	if k.SSHPublicKey != nil {
 		pkBytes := ssh.MarshalAuthorizedKey(*k.SSHPublicKey)
+
+		if k.Type == "WEBAUTHN" && k.config.VerifyRequired {
+			pkBytes = append([]byte("verify-required "), pkBytes...)
+		}
+
 		return string(pkBytes)
 	}
 
@@ -367,13 +373,18 @@ func (k *Key) signWebAuthN(signData []byte) (*ssh.Signature, error) {
 		},
 	}
 
+	userVerification := webauthn.USER_VERIFICATION_REQUIREMENT_DISCOURAGED
+	if k.config.VerifyRequired {
+		userVerification = webauthn.USER_VERIFICATION_REQUIREMENT_REQUIRED
+	}
+
 	assertionOptions := webauthn.AUTHENTICATOR_GET_ASSERTION_OPTIONS{
 		Version: webauthn.AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS_CURRENT_VERSION,
 		CredentialList: webauthn.CREDENTIALS{
 			Count:       1,
 			Credentials: uintptr(unsafe.Pointer(&credentials[0])),
 		},
-		UserVerificationRequirement: webauthn.USER_VERIFICATION_REQUIREMENT_ANY,
+		UserVerificationRequirement: uint32(userVerification),
 	}
 
 	assertion, err := webauthn.AuthenticatorGetAssertion(k.hwnd, application, clientData, assertionOptions)
@@ -845,7 +856,7 @@ func (km *KeyManager) CreateNewNCryptKey(keyName string, containerName string, p
 	return &k, err
 }
 
-func (km *KeyManager) CreateNewWebAuthNKey(keyName string, application string, coseAlgorithm int64, coseHash string, hwnd uintptr) (*Key, error) {
+func (km *KeyManager) CreateNewWebAuthNKey(keyName string, application string, coseAlgorithm int64, coseHash string, resident bool, verifyRequired bool, hwnd uintptr) (*Key, error) {
 
 	if _, keyNameExists := km.Keys[keyName]; keyNameExists {
 		return nil, fmt.Errorf("key named %s already exists", keyName)
@@ -853,6 +864,8 @@ func (km *KeyManager) CreateNewWebAuthNKey(keyName string, application string, c
 
 	if application == "" {
 		application = fmt.Sprintf("ssh:%s", keyName)
+	} else {
+		application = fmt.Sprintf("ssh:%s", application)
 	}
 
 	var userName string
@@ -860,7 +873,7 @@ func (km *KeyManager) CreateNewWebAuthNKey(keyName string, application string, c
 	if err != nil {
 		userName = ""
 	} else {
-		userName = currentUser.Username
+		userName = currentUser.Name
 	}
 
 	userId := []byte("(null)")
@@ -894,18 +907,25 @@ func (km *KeyManager) CreateNewWebAuthNKey(keyName string, application string, c
 		CredentialParameters: uintptr(unsafe.Pointer(&cose_parameter[0])),
 	}
 
-	ssh_challenge_data := []byte("{}") // should we make a random data?
+	sshChallengeData := []byte("{}") // should we make a random data?
 
-	client_data := webauthn.CLIENT_DATA{
+	clientData := webauthn.CLIENT_DATA{
 		Version:              webauthn.CLIENT_DATA_CURRENT_VERSION,
-		ClientDataJSONLength: uint32(len(ssh_challenge_data)),
-		ClientDataJSON:       uintptr(unsafe.Pointer(&ssh_challenge_data[0])),
+		ClientDataJSONLength: uint32(len(sshChallengeData)),
+		ClientDataJSON:       uintptr(unsafe.Pointer(&sshChallengeData[0])),
 		HashAlgId:            webauthn.LPCWSTR(coseHash),
 	}
 
-	credential_options := webauthn.AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS_V3{
+	userVerificationRequirement := webauthn.USER_VERIFICATION_REQUIREMENT_DISCOURAGED
+
+	if verifyRequired {
+		userVerificationRequirement = webauthn.USER_VERIFICATION_REQUIREMENT_REQUIRED
+	}
+
+	credentialOptions := webauthn.AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS_V3{
 		Version:                     webauthn.AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS_CURRENT_VERSION,
-		UserVerificationRequirement: webauthn.USER_VERIFICATION_REQUIREMENT_ANY,
+		UserVerificationRequirement: uint32(userVerificationRequirement),
+		RequireResidentKey:          resident,
 	}
 
 	var useWnd uintptr
@@ -917,7 +937,7 @@ func (km *KeyManager) CreateNewWebAuthNKey(keyName string, application string, c
 		useWnd = uintptr(win.GetForegroundWindow())
 	}
 
-	credentialAttestation, err := webauthn.AuthenticatorMakeCredential(useWnd, entity_info, user_entity_info, cose_parameters, client_data, credential_options)
+	credentialAttestation, err := webauthn.AuthenticatorMakeCredential(useWnd, entity_info, user_entity_info, cose_parameters, clientData, credentialOptions)
 
 	if err != nil {
 		return nil, fmt.Errorf("AuthenticatorMakeCredential failed: %w", err)
@@ -1005,7 +1025,7 @@ func (km *KeyManager) CreateNewWebAuthNKey(keyName string, application string, c
 		}
 	} else if coseKey.Kty == webauthn.COSE_KEY_TYPE_OKP {
 		if coseKey.Alg == webauthn.COSE_ALGORITHM_EDDSA_ED25519 {
-			keyType := OPENSSH_SK_ECDSA
+			keyType := OPENSSH_SK_ED25519
 
 			sshPub := struct {
 				Type        string
@@ -1057,14 +1077,15 @@ func (km *KeyManager) CreateNewWebAuthNKey(keyName string, application string, c
 		LoadError:      nil,
 		algorithm:      "",
 		config: &KeyConfig{
-			Name:          keyName,
-			Type:          "WEBAUTHN",
-			ContainerName: "",
-			ProviderName:  "",
-			SSHPublicKey:  "",
-			SKPrivateHalf: base64.StdEncoding.EncodeToString(sshPrivBytes),
-			Algorithm:     "",
-			Length:        0,
+			Name:           keyName,
+			Type:           "WEBAUTHN",
+			ContainerName:  "",
+			ProviderName:   "",
+			SSHPublicKey:   "",
+			SKPrivateHalf:  base64.StdEncoding.EncodeToString(sshPrivBytes),
+			Algorithm:      "",
+			Length:         0,
+			VerifyRequired: verifyRequired,
 		},
 		handle: 0,
 		signer: nil,
@@ -1140,7 +1161,7 @@ func (km *KeyManager) SaveConfig() error {
 }
 
 func (km *KeyManager) DeleteKey(keyToDelete *Key, deleteFromKeystore bool) error {
-	fmt.Printf("Deleting %s - fomrKeystore %v\n", keyToDelete.Name, deleteFromKeystore)
+	fmt.Printf("Deleting %s - from keystore %v\n", keyToDelete.Name, deleteFromKeystore)
 
 	if deleteFromKeystore && keyToDelete.Type == "NCRYPT" {
 		err := ncrypt.NCryptDeleteKey(keyToDelete.handle, 0)
@@ -1218,7 +1239,7 @@ func (km *KeyManager) LoadWebAuthNKey(kc *KeyConfig) (*Key, error) {
 	out, _, _, _, err := ssh.ParseAuthorizedKey([]byte(kc.SSHPublicKey))
 
 	if err != nil {
-		fmt.Printf("Error parsing authorized: %w", err)
+		fmt.Printf("Error parsing authorized: %w\n", err)
 		return nil, err
 	}
 

@@ -12,16 +12,18 @@ import (
 type LoadExistingKey struct {
 	*walk.Dialog
 	nameEdit         *walk.LineEdit
+	providerSelect   *walk.ComboBox
 	cardReaderSelect *walk.ComboBox
 	containerSelect  *walk.ComboBox
 
 	saveButton   *walk.PushButton
 	cancelButton *walk.PushButton
 
-	config        keyman.KeyConfig
-	scardReaders  []string
-	containerList []ncrypt.NCryptKeyDescriptor
-	onChangeMU    sync.Mutex
+	config          keyman.KeyConfig
+	scardReaders    []string
+	containerList   []ncrypt.NCryptKeyDescriptor
+	onChangeMU      sync.Mutex
+	cardReaderLabel *walk.TextLabel
 }
 
 func runLoadExistingDialog(owner walk.Form, km *keyman.KeyManager) *keyman.KeyConfig {
@@ -84,14 +86,33 @@ func newLoadExistingDialog(owner walk.Form, km *keyman.KeyManager) (*LoadExistin
 	dlg.nameEdit.SetText(dlg.config.Name)
 	dlg.nameEdit.SetAlignment(walk.AlignHFarVCenter)
 
-	//Setup the cardReader list dropdown
-	cardReaderLabel, err := walk.NewTextLabel(dlg)
+	//Setup the provider list dropdown
+	providerLabel, err := walk.NewTextLabel(dlg)
 	if err != nil {
 		return nil, err
 	}
-	layout.SetRange(cardReaderLabel, walk.Rectangle{0, 1, 1, 1})
-	cardReaderLabel.SetTextAlignment(walk.AlignHFarVCenter)
-	cardReaderLabel.SetText(fmt.Sprintf("&Card Reader:"))
+	layout.SetRange(providerLabel, walk.Rectangle{0, 1, 1, 1})
+	providerLabel.SetTextAlignment(walk.AlignHFarVCenter)
+	providerLabel.SetText(fmt.Sprintf("&Provider:"))
+
+	if dlg.providerSelect, err = walk.NewDropDownBox(dlg); err != nil {
+		return nil, err
+	}
+	dlg.providerSelect.SetModel([]string{ncrypt.ProviderMSPlatform, ncrypt.ProviderMSSC})
+	dlg.providerSelect.SetCurrentIndex(0)
+	dlg.providerSelect.CurrentIndexChanged().Attach(dlg.onProviderChange)
+	dlg.providerSelect.SetAlignment(walk.AlignHFarVCenter)
+	layout.SetRange(dlg.providerSelect, walk.Rectangle{1, 1, 1, 1})
+
+	//Setup the cardReader list dropdown
+	dlg.cardReaderLabel, err = walk.NewTextLabel(dlg)
+	if err != nil {
+		return nil, err
+	}
+	layout.SetRange(dlg.cardReaderLabel, walk.Rectangle{0, 2, 1, 1})
+	dlg.cardReaderLabel.SetTextAlignment(walk.AlignHFarVCenter)
+	dlg.cardReaderLabel.SetText(fmt.Sprintf("&Card Reader:"))
+	dlg.cardReaderLabel.SetVisible(false)
 
 	if dlg.cardReaderSelect, err = walk.NewDropDownBox(dlg); err != nil {
 		return nil, err
@@ -100,14 +121,15 @@ func newLoadExistingDialog(owner walk.Form, km *keyman.KeyManager) (*LoadExistin
 	dlg.cardReaderSelect.SetCurrentIndex(0)
 	dlg.cardReaderSelect.CurrentIndexChanged().Attach(dlg.onCardChange)
 	dlg.cardReaderSelect.SetAlignment(walk.AlignHFarVCenter)
-	layout.SetRange(dlg.cardReaderSelect, walk.Rectangle{1, 1, 1, 1})
+	layout.SetRange(dlg.cardReaderSelect, walk.Rectangle{1, 2, 1, 1})
+	dlg.cardReaderSelect.SetVisible(false)
 
 	//Setup the containerSelect list dropdown
 	containerSelectLabel, err := walk.NewTextLabel(dlg)
 	if err != nil {
 		return nil, err
 	}
-	layout.SetRange(containerSelectLabel, walk.Rectangle{0, 2, 1, 1})
+	layout.SetRange(containerSelectLabel, walk.Rectangle{0, 3, 1, 1})
 	containerSelectLabel.SetTextAlignment(walk.AlignHFarVCenter)
 	containerSelectLabel.SetText(fmt.Sprintf("&Container:"))
 
@@ -118,13 +140,13 @@ func newLoadExistingDialog(owner walk.Form, km *keyman.KeyManager) (*LoadExistin
 	dlg.containerSelect.SetEnabled(false)
 	dlg.containerSelect.SetCurrentIndex(0)
 	dlg.containerSelect.SetAlignment(walk.AlignHFarVCenter)
-	layout.SetRange(dlg.containerSelect, walk.Rectangle{1, 2, 1, 1})
+	layout.SetRange(dlg.containerSelect, walk.Rectangle{1, 3, 1, 1})
 
 	buttonsContainer, err := walk.NewComposite(dlg)
 	if err != nil {
 		return nil, err
 	}
-	layout.SetRange(buttonsContainer, walk.Rectangle{0, 3, 2, 1})
+	layout.SetRange(buttonsContainer, walk.Rectangle{0, 4, 2, 1})
 	buttonsContainer.SetLayout(walk.NewHBoxLayout())
 	buttonsContainer.Layout().SetMargins(walk.Margins{})
 
@@ -147,6 +169,8 @@ func newLoadExistingDialog(owner walk.Form, km *keyman.KeyManager) (*LoadExistin
 
 	disposables.Spare()
 
+	dlg.updateKeyList()
+
 	return dlg, nil
 
 }
@@ -164,21 +188,40 @@ func (dlg *LoadExistingKey) onSaveButtonClicked() {
 		Type:          "NCRYPT",
 		ContainerName: dlg.containerSelect.Text(),
 		Algorithm:     algorithm,
-		ProviderName:  ncrypt.ProviderMSSC,
-		SSHPublicKey:  "",
+		ProviderName:  dlg.providerSelect.Text(),
 	}
 
 	dlg.Accept()
 }
 
 func (dlg *LoadExistingKey) onCardChange() {
+	dlg.updateKeyList()
+}
+
+func (dlg *LoadExistingKey) onProviderChange() {
+	if dlg.providerSelect.Text() == ncrypt.ProviderMSPlatform {
+		dlg.cardReaderLabel.SetVisible(false)
+		dlg.cardReaderSelect.SetVisible(false)
+	} else {
+		dlg.cardReaderLabel.SetVisible(true)
+		dlg.cardReaderSelect.SetVisible(true)
+	}
+
+	dlg.updateKeyList()
+}
+
+func (dlg *LoadExistingKey) updateKeyList() {
 	if !dlg.onChangeMU.TryLock() {
 		return
 	}
 	defer dlg.onChangeMU.Unlock()
 
 	var err error
-	dlg.containerList, err = ncrypt.ListContainersOnCard(ncrypt.ProviderMSSC, dlg.cardReaderSelect.Text())
+	cardReader := ""
+	if dlg.providerSelect.Text() == ncrypt.ProviderMSSC {
+		cardReader = dlg.cardReaderSelect.Text()
+	}
+	dlg.containerList, err = ncrypt.ListKeysOnProvider(dlg.providerSelect.Text(), cardReader)
 
 	if err != nil {
 		showError(err, dlg)

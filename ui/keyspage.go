@@ -157,8 +157,8 @@ func (kp *KeysPage) CreateToolbar() error {
 	addMenuAction := walk.NewMenuAction(addMenu)
 	addMenuActionIcon, _ := loadSystemIcon("shell32", 104, 16)
 	addMenuAction.SetImage(addMenuActionIcon)
-	addMenuAction.SetText(fmt.Sprintf("Add Key"))
-	addMenuAction.Triggered().Attach(kp.onCreateExistingKey)
+	addMenuAction.SetText(fmt.Sprintf("Create Key"))
+	addMenuAction.Triggered().Attach(kp.onCreateKey)
 	kp.listToolbar.Actions().Add(addMenuAction)
 
 	kp.listToolbar.Actions().Add(walk.NewSeparatorAction())
@@ -184,11 +184,11 @@ func (kp *KeysPage) CreateToolbar() error {
 	}
 	kp.listView.AddDisposable(contextMenu)
 
-	//createNewAction2 := walk.NewAction()
-	//createNewAction2.SetText(fmt.Sprintf("&Create new nCrypt Key…"))
-	//createNewAction2.Triggered().Attach(kp.onCreateKey)
-	//contextMenu.Actions().Add(createNewAction2)
-	//kp.ShortcutActions().Add(createNewAction2)
+	createNewAction2 := walk.NewAction()
+	createNewAction2.SetText(fmt.Sprintf("&Create new nCrypt Key…"))
+	createNewAction2.Triggered().Attach(kp.onCreateKey)
+	contextMenu.Actions().Add(createNewAction2)
+	kp.ShortcutActions().Add(createNewAction2)
 
 	addWebAuthN2 := walk.NewAction()
 	addWebAuthN2.SetText(fmt.Sprintf("&Create new WebAuthN Key…"))
@@ -281,6 +281,8 @@ func (kp *KeysPage) onCreateWebAuthNKey() {
 				"",
 				int64(coseAlgorithm),
 				coseHash,
+				config.Resident,
+				config.VerifyRequired,
 				uintptr(kp.Handle()),
 			)
 
@@ -322,20 +324,8 @@ func (kp *KeysPage) onDelete() {
 
 		if len(kp.keyManager.Keys) == 0 {
 			kp.keyView.SetKey(nil)
-			//kp.keyView.SetKey(&keyman.Key{
-			//	Name:                 "No Keys",
-			//	Type:                 "None",
-			//	SSHPublicKey:         nil,
-			//	SSHPublicKeyLocation: "",
-			//	Missing:              true,
-			//	LoadError:            nil,
-			//})
 		}
 	}
-}
-
-func (kp *KeysPage) onDummy() {
-
 }
 
 func (kp *KeysPage) onAddCertificate() {

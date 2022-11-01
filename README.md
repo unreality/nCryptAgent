@@ -15,7 +15,7 @@ Use your WebAuthN authenticator as your SSH key with `sk-ssh-ed25519@openssh.com
 * Create TPM-backed hardware keys using the `Microsoft Platform Crypto Provider` (PCP)
 * Create and use OpenSSH SK keys without middleware
   * `sk-ssh-ed25519@openssh.com` and `sk-ecdsa-sha2-nistp256@openssh.com` key types, along with their matching certificates
-* Import and use nCrypt keys that are backed by Smart Cards
+* Import and use keys stored on smart cards
   * Yubikeys
   * [Virtual Smart Cards](https://learn.microsoft.com/en-us/windows/security/identity-protection/virtual-smart-cards/virtual-smart-card-overview)
   * ...any other smart card or PIV applet supported the `Microsoft Smart Card Key Storage Provider`
@@ -27,56 +27,64 @@ Use your WebAuthN authenticator as your SSH key with `sk-ssh-ed25519@openssh.com
   * Cygwin/mSys/MinGW
 * Notifications so you know when your key is being used
 * Configurable PIN/Password cache, so you don't have to re-enter your PIN/Password for rapid successive key usage (not available for WebAuthN keys)
-* OpenSSH Certificates
+* Support for [OpenSSH Certificates](https://smallstep.com/blog/use-ssh-certificates/)
   * Adds support for OpenSSH certificates to PuTTY!
 
 ## Getting Started
 
-* Download the latest release
-* Click `Create Key` and enter a key name and container name.
+* Download and launch the latest release
+* Click **Create Key** and enter a key name and container name.
   * Key name is a friendly descriptive name for the SSH Key
   * Container name is the nCrypt key container identifier which will be used - it will be shown in the password prompt when signing is requested.
 * Select your Key Algorithm
 * Enter a password or PIN
   * This can be empty if you wish to be a bit less secure
 * Click save
-* You now have a new SSH key, you can click the `Copy Key` button to copy the `authorized_keys` content to the clipboard and save it to the remote server. Alternatively you can copy the public key's path for use as a command line arg, or opening with another program.
+* You now have a new SSH key, you can click the **Copy Key** button to copy the `authorized_keys` content to the clipboard and save it to the remote server. Alternatively you can copy the public key's path for use as a command line arg, or opening with another program.
 
-You can use the key by configuring your SSH client to use nCryptAgent as its SSH agent. For OpenSSH for Windows and PuTTY this should work automatically, as long as those listeners are enabled in the `Config` tab. For WSL2 and Cygwin, you will need to set your `SSH_AUTH_SOCK` environment variable. The commands for doing this are available in the `Config` tab.
+You can use the key by configuring your SSH client to use nCryptAgent as its SSH agent. For OpenSSH for Windows and PuTTY this should work automatically, as long as those listeners are enabled in the **Config** tab. For WSL2 and Cygwin, you will need to set your `SSH_AUTH_SOCK` environment variable. The commands for doing this are available in the **Config** tab.
 
 ## Getting Started with WebAuthN Security Keys
 
-* From the nCryptAgent main window, select the dropdown arrow in the bottom left and click on `Create new webauthn key`
+* From the nCryptAgent main window, select the dropdown arrow in the bottom left and click on **Create new WebAuthN key**
 * Enter a friendly name for the key and choose your key algorithm
-* Click `Save` and you will be prompted to enter your pin and touch your security key
+* Click **Save** and you will be prompted to enter your pin and touch your security key
 * Your key is now available for use
 
-OpenSSH-SK keys require OpenSSH v8.4 or higher to use.
+`sk-ssh-ed25519@openssh.com` and `sk-ecdsa-sha2-nistp256@openssh.com` keys require [OpenSSH 8.4](https://www.openssh.com/txt/release-8.4) or higher to use.
+
+### WebAuthN/FIDO Specific options
+
+OpenSSH has a few specific options for `sk-ssh-ed25519@openssh.com` and `sk-ecdsa-sha2-nistp256@openssh.com` key types. nCryptAgent supports `verify-required`, but unfortunately Windows always demands a touch event if possible, so `no-touch-required` has no effect. To use `verify-required`, when creating your WebAuthN key select the **User Verification Required** option. The appropriate options flag will be added to the key when you click the **Copy Key** button ready for pasting into your `authorized_keys` file.
+
+### Resident Keys
+
+You can create a resident key by selecting the appropriate checkbox when creating the key. Unfortunately the Windows WebAuthN API only supports retrieving credentials in v4 or greater (ie Windows 11 22H2 is required), so support for retrieving credentials is not yet in nCryptAgent.
 
 ## Getting Started with Smart Cards
 
-If you don't already have a certificate on your smart card, you'll need to create one.
+If you don't already have a certificate on your smart card, you'll need to create one:
 
 ### Yubikeys
 
-* Open the YubiKey Manager App
+* Open the [YubiKey Manager](https://www.yubico.com/support/download/yubikey-manager/) App
 * Select the PIV application
-* Click on `Configure Certificates`
-* Select an empty slot and click `Generate`
+* Click on **Configure Certificates**
+* Select an empty slot and click **Generate**
 * Click through the wizard to create a self-signed certificate
 * Once you have a certificate saved, follow the Use existing keys section below.
 
 ### TPM Smart Cards
 
-* Create a card if you dont have one:
+* Create a card if you don't have one:
   * Ensure your TPM is enabled in BIOS or UEFI. Different manufacturers name the setting differently.
   * Open a command prompt
   * Run `tpmvscmgr create /name <Friendly_Name> /AdminKey DEFAULT /pin PROMPT /pinpolicy minlen 4 /generate` where `<Friendly_Name>` is a name you choose
 * You can use `certreq` and `certutil` to load a certificate onto the smart card, after which you can `Add existing nCrypt Key` to import your Smart Card credentials into nCryptAgent
 
-### Add Smart Card Key to nCryptAgent
+### Import an existing key
 
-If you have a key on your smart card (for instance you have existing credentials on your Yubikey) you can import that key by clicking on the dropdown next to `Create Key` and selecting `Add existing nCrypt key`. Select your smart card reader from the dropdown, then select your existing key and enter a name. Click save and your existing key will be ready for use.
+If you have a key on your smart card (for instance you have existing credentials on your Yubikey), or have previously created a key using PCP, you can import that key by clicking on the dropdown next to **Create Key** and selecting **Add existing nCrypt key**. Select your key from the dropdown after selecting the provider and smart card reader (if required), and enter a name. Click save and your existing key will be ready for use.
 
 ## Client Configuration
 
@@ -104,3 +112,12 @@ I'll get around to making a proper build script at some point...
 
 * Sometimes the PIN prompt does not obtain focus correctly and will pop up in the background.
 * Sometimes the 'Copy' buttons do not correctly copy to clipboard.
+
+## FAQ
+
+### I'd REALLY like to use a non-hardware key
+If you simply MUST have a software backed key you can open the configuration file at `%AppData%\nCryptAgent\config.json` and add a key with `providerName: "Microsoft Software Key Storage Provider"`  and set the `containerName` to an existing key. You can get a list of existing keys by running `certutil -key -user -csp KSP` in a command prompt window.
+
+### The nCrypt `containerName` lists a location on my local filesystem, what gives?
+The `Platform Crypto Provider` does not actually store the complete key in the TPM, instead it stores a file for loading into the TPM when signing operations are required. The files are specific to each TPM so your key is still non-exportable. [@ElMostafaIdrassi](https://github.com/ElMostafaIdrassi/pcpcrypto#general-trivia-about-pcp-tpm-keys) has written a nice explanation of it if you'd like more detail.
+

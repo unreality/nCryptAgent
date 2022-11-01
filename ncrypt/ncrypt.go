@@ -663,10 +663,13 @@ type NCryptKeyDescriptor struct {
 	Algorithm string
 }
 
-func ListContainersOnCard(providerName string, cardReader string) ([]NCryptKeyDescriptor, error) {
+func ListKeysOnProvider(providerName string, cardReader string) ([]NCryptKeyDescriptor, error) {
 	var err error
 
-	scope := fmt.Sprintf("\\\\.\\%s\\", cardReader)
+	var scope string
+	if cardReader != "" {
+		scope = fmt.Sprintf("\\\\.\\%s\\", cardReader)
+	}
 
 	prov, err := NCryptOpenStorageProvider(providerName)
 	if err != nil {

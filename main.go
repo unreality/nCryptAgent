@@ -1,6 +1,8 @@
 package main
 
-import "ncryptagent/ui"
+import (
+	"ncryptagent/ui"
+)
 
 func main() {
 	ui.RunUI()

@@ -18,6 +18,7 @@ import (
 	"github.com/lxn/win"
 	"golang.org/x/crypto/ssh"
 	"io/ioutil"
+	"log"
 	"math/big"
 	"ncryptagent/keyman/listeners"
 	"ncryptagent/ncrypt"
@@ -195,7 +196,7 @@ func (k *Key) SaveSSHPublicKey(publicKeysDir string) error {
 		fingerprint := ssh.FingerprintLegacyMD5(*k.SSHPublicKey)
 		filename := fmt.Sprintf("%s.pub", strings.ReplaceAll(fingerprint, ":", ""))
 		k.SSHPublicKeyLocation = filepath.Join(publicKeysDir, filename)
-		fmt.Printf("Saving public key to %s\n", k.SSHPublicKeyLocation)
+		log.Printf("Saving public key to %s\n", k.SSHPublicKeyLocation)
 
 		f, err := os.OpenFile(k.SSHPublicKeyLocation, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 		if err != nil {
@@ -443,7 +444,7 @@ func (k *Key) SetHWND(hwnd uintptr) {
 	if k.Type == "NCRYPT" && k.handle != 0 {
 		err := ncrypt.NCryptSetProperty(k.handle, ncrypt.NCRYPT_WINDOW_HANDLE_PROPERTY, hwnd, 0)
 		if err != nil {
-			fmt.Printf("Setting NCryptWindow handle failed: %v", err)
+			log.Printf("Setting NCryptWindow handle failed: %v", err)
 		}
 	}
 	k.hwnd = hwnd
@@ -494,7 +495,7 @@ func NewKeyManager(configPath string) (*KeyManager, error) {
 	os.MkdirAll(publicKeysDir, os.ModePerm)
 
 	if _, err := os.Stat(configPath); errors.Is(err, os.ErrNotExist) {
-		fmt.Printf("Using default config\n")
+		log.Printf("Using default config\n")
 		// create a default config
 		kmc = KeyManagerConfig{
 			Keys:             nil,
@@ -505,7 +506,7 @@ func NewKeyManager(configPath string) (*KeyManager, error) {
 			NamedPipeEnabled: true,
 		}
 	} else {
-		fmt.Printf("Loading %s\n", configPath)
+		//log.Printf("Loading %s\n", configPath)
 		content, err := ioutil.ReadFile(configPath)
 		if err != nil {
 			return nil, fmt.Errorf("unable to read KeyManager config file at %s: %w", configPath, err)
@@ -561,7 +562,7 @@ func NewKeyManager(configPath string) (*KeyManager, error) {
 	}
 
 	for _, k := range kmc.Keys {
-		fmt.Printf("Loading key %s\n", k.Name)
+		log.Printf("Loading key %s\n", k.Name)
 		var err error
 
 		if k.Type == "NCRYPT" {
@@ -597,7 +598,7 @@ func NewKeyManager(configPath string) (*KeyManager, error) {
 				if sshPublicKey, _, _, _, err := ssh.ParseAuthorizedKey([]byte(k.SSHPublicKey)); err == nil {
 					km.Keys[k.Name].SSHPublicKey = &sshPublicKey
 				} else {
-					fmt.Printf("Unable to load stored public key: %v", err)
+					log.Printf("Unable to load stored public key: %v", err)
 				}
 			}
 		}
@@ -609,10 +610,10 @@ func NewKeyManager(configPath string) (*KeyManager, error) {
 func (km *KeyManager) StartListener(listener listeners.Listener) {
 	km.lwg.Add(1)
 	go func(l listeners.Listener) {
-		fmt.Printf("Starting listener %T\n", l)
+		log.Printf("Starting listener %T\n", l)
 		err := l.Run(km.lctx, &km.sshAgent)
 		if err != nil {
-			fmt.Printf("Error result from listener Run(): %s\n", err)
+			log.Printf("Error result from listener Run(): %s\n", err)
 			return
 		}
 		km.lwg.Done()
@@ -658,16 +659,16 @@ func (km *KeyManager) LoadNCryptKey(kc *KeyConfig) (*Key, error) {
 		return nil, err
 	}
 
-	//var keyLength = 0
-	//if algorithmName == ALG_RSA {
-	//    keyLength, err = NCryptGetPropertyInt(keyHandle, NCRYPT_LENGTH_PROPERTY)
-	//    if err == nil {
-	//        fmt.Printf("Got length %d\n", keyLength)
-	//    } else {
-	//        fmt.Printf("%v", err)
-	//        keyLength = 0
-	//    }
-	//}
+	var keyLength = 0
+	if algorithmName == ncrypt.ALG_RSA {
+		keyLength, err = ncrypt.NCryptGetPropertyInt(keyHandle, ncrypt.NCRYPT_LENGTH_PROPERTY)
+		if err == nil {
+			log.Printf("Got length %d\n", keyLength)
+		} else {
+			log.Printf("%v", err)
+			keyLength = 0
+		}
+	}
 
 	signer, err := newNCryptSigner(keyHandle, km.config.PinTimeout)
 	if err != nil {
@@ -790,7 +791,7 @@ func (km *KeyManager) CreateNewNCryptKey(keyName string, containerName string, p
 
 		err = ncrypt.NCryptSetProperty(kh, ncrypt.NCRYPT_PCP_USAGE_AUTH_PROPERTY, digest[:], 0)
 		if err != nil {
-			fmt.Printf("error setting password: %v\n", err)
+			log.Printf("error setting password: %v\n", err)
 		}
 	}
 
@@ -878,14 +879,14 @@ func (km *KeyManager) CreateNewWebAuthNKey(keyName string, application string, c
 
 	userId := []byte("(null)")
 
-	entity_info := webauthn.RP_ENTITY_INFORMATION{
+	entityInfo := webauthn.RP_ENTITY_INFORMATION{
 		Version: webauthn.RP_ENTITY_INFORMATION_CURRENT_VERSION,
 		Id:      webauthn.LPCWSTR(application),
 		Name:    webauthn.LPCWSTR("nCrypt Agent"),
 		Icon:    nil,
 	}
 
-	user_entity_info := webauthn.USER_ENTITY_INFORMATION{
+	userEntityInfo := webauthn.USER_ENTITY_INFORMATION{
 		Version:     webauthn.USER_ENTITY_INFORMATION_CURRENT_VERSION,
 		IdLen:       uint32(len(userId)),
 		Id:          uintptr(unsafe.Pointer(&userId[0])),
@@ -894,7 +895,7 @@ func (km *KeyManager) CreateNewWebAuthNKey(keyName string, application string, c
 		DisplayName: webauthn.LPCWSTR(userName),
 	}
 
-	cose_parameter := []webauthn.COSE_CREDENTIAL_PARAMETER{
+	coseParameter := []webauthn.COSE_CREDENTIAL_PARAMETER{
 		{
 			Version:        webauthn.COSE_CREDENTIAL_PARAMETER_CURRENT_VERSION,
 			CredentialType: webauthn.LPCWSTR(webauthn.CREDENTIAL_TYPE_PUBLIC_KEY),
@@ -902,9 +903,9 @@ func (km *KeyManager) CreateNewWebAuthNKey(keyName string, application string, c
 		},
 	}
 
-	cose_parameters := webauthn.COSE_CREDENTIAL_PARAMETERS{
-		Count:                uint32(len(cose_parameter)),
-		CredentialParameters: uintptr(unsafe.Pointer(&cose_parameter[0])),
+	coseParameters := webauthn.COSE_CREDENTIAL_PARAMETERS{
+		Count:                uint32(len(coseParameter)),
+		CredentialParameters: uintptr(unsafe.Pointer(&coseParameter[0])),
 	}
 
 	sshChallengeData := []byte("{}") // should we make a random data?
@@ -922,7 +923,7 @@ func (km *KeyManager) CreateNewWebAuthNKey(keyName string, application string, c
 		userVerificationRequirement = webauthn.USER_VERIFICATION_REQUIREMENT_REQUIRED
 	}
 
-	credentialOptions := webauthn.AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS_V3{
+	credentialOptions := webauthn.AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS{
 		Version:                     webauthn.AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS_CURRENT_VERSION,
 		UserVerificationRequirement: uint32(userVerificationRequirement),
 		RequireResidentKey:          resident,
@@ -937,7 +938,7 @@ func (km *KeyManager) CreateNewWebAuthNKey(keyName string, application string, c
 		useWnd = uintptr(win.GetForegroundWindow())
 	}
 
-	credentialAttestation, err := webauthn.AuthenticatorMakeCredential(useWnd, entity_info, user_entity_info, cose_parameters, clientData, credentialOptions)
+	credentialAttestation, err := webauthn.AuthenticatorMakeCredential(useWnd, entityInfo, userEntityInfo, coseParameters, clientData, credentialOptions)
 
 	if err != nil {
 		return nil, fmt.Errorf("AuthenticatorMakeCredential failed: %w", err)
@@ -1161,13 +1162,13 @@ func (km *KeyManager) SaveConfig() error {
 }
 
 func (km *KeyManager) DeleteKey(keyToDelete *Key, deleteFromKeystore bool) error {
-	fmt.Printf("Deleting %s - from keystore %v\n", keyToDelete.Name, deleteFromKeystore)
+	log.Printf("Deleting %s - from keystore %v\n", keyToDelete.Name, deleteFromKeystore)
 
 	if deleteFromKeystore && keyToDelete.Type == "NCRYPT" {
 		err := ncrypt.NCryptDeleteKey(keyToDelete.handle, 0)
 
 		if err != nil {
-			fmt.Printf("err: %s", err)
+			log.Printf("err: %s", err)
 			return err
 		}
 	}
@@ -1239,7 +1240,7 @@ func (km *KeyManager) LoadWebAuthNKey(kc *KeyConfig) (*Key, error) {
 	out, _, _, _, err := ssh.ParseAuthorizedKey([]byte(kc.SSHPublicKey))
 
 	if err != nil {
-		fmt.Printf("Error parsing authorized: %w\n", err)
+		log.Printf("Error parsing authorized: %w\n", err)
 		return nil, err
 	}
 

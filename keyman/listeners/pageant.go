@@ -2,9 +2,9 @@ package listeners
 
 import (
 	"context"
-	"fmt"
 	"golang.org/x/crypto/ssh/agent"
 	"io"
+	"log"
 	"ncryptagent/keyman/listeners/pageant"
 	"os"
 	"sync"
@@ -67,7 +67,7 @@ func (p *Pageant) Run(ctx context.Context, sshagent agent.Agent) error {
 	wg := new(sync.WaitGroup)
 	for {
 		conn, err := p.win.AcceptCtx(ctx)
-		fmt.Println("Got pageant connection")
+		log.Println("Got pageant connection")
 		if err != nil {
 			if err != io.ErrClosedPipe {
 				return err
@@ -76,11 +76,11 @@ func (p *Pageant) Run(ctx context.Context, sshagent agent.Agent) error {
 		}
 		wg.Add(1)
 		go func() {
-			fmt.Println("Handling agent connection")
+			log.Println("Handling agent connection")
 			defer conn.Close()
 			err := agent.ServeAgent(sshagent, conn)
 			if err != nil && err != io.EOF {
-				fmt.Println(err.Error())
+				log.Println(err.Error())
 			}
 			wg.Done()
 		}()

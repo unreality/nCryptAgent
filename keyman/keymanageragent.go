@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"log"
 	"sync"
 )
 
@@ -67,6 +68,7 @@ func (kma *KeyManagerAgent) SignWithFlags(key ssh.PublicKey, data []byte, flags 
 				sig, err := k.SignSSH(data)
 
 				if err != nil {
+					log.Printf("SSH Sign with %s FAILED: %v", k.Name, err)
 					kma.km.Notify(NotifyMsg{
 						Title:   "SSH Sign Failed",
 						Message: fmt.Sprintf("Failed to sign message with key \"%s\"", k.Name),
@@ -84,6 +86,7 @@ func (kma *KeyManagerAgent) SignWithFlags(key ssh.PublicKey, data []byte, flags 
 					return nil, err
 				}
 
+				log.Printf("SSH Sign with %s SUCCEEDED", k.Name)
 				kma.km.Notify(NotifyMsg{
 					Title:   "SSH Sign Successful",
 					Message: fmt.Sprintf("Signed message with key \"%s\"", k.Name),
@@ -114,6 +117,7 @@ func (kma *KeyManagerAgent) SignWithFlags(key ssh.PublicKey, data []byte, flags 
 				sig, err := k.SignWithAlgorithmSSH(data, algorithm)
 
 				if err != nil {
+					log.Printf("SSH Sign with %s FAILED: %v", k.Name, err)
 					kma.km.Notify(NotifyMsg{
 						Title:   "SSH Sign Failed",
 						Message: fmt.Sprintf("Failed to sign message with key \"%s\"", k.Name),
@@ -131,6 +135,7 @@ func (kma *KeyManagerAgent) SignWithFlags(key ssh.PublicKey, data []byte, flags 
 					return nil, err
 				}
 
+				log.Printf("SSH Sign with %s SUCCEEDED", k.Name)
 				kma.km.Notify(NotifyMsg{
 					Title:   "SSH Sign Successful",
 					Message: fmt.Sprintf("Signed message with key \"%s\"", k.Name),

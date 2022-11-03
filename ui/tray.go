@@ -10,17 +10,10 @@ import (
 	"github.com/lxn/walk"
 )
 
-// Status + active CIDRs + separator
-const trayTunnelActionsOffset = 3
-
 type Tray struct {
 	*walk.NotifyIcon
 
-	// Current known keys by name
-	//keys map[string]*walk.Action
-
-	mtw *ManageKeysWindow
-
+	mtw     *ManageKeysWindow
 	clicked func()
 }
 
@@ -95,8 +88,6 @@ func (tray *Tray) Dispose() error {
 }
 
 func (tray *Tray) onManageKeys() {
-	//tray.mtw.tunnelsPage.listView.SelectFirstActiveTunnel()
-	//tray.mtw.tabs.SetCurrentIndex(0)
 	raise(tray.mtw.Handle())
 }
 
@@ -106,13 +97,4 @@ func (tray *Tray) onAbout() {
 	} else {
 		onAbout(nil)
 	}
-}
-
-func (tray *Tray) Handle() {
-
-	//if tray.mtw.Visible() {
-	//    onAbout(tray.mtw)
-	//} else {
-	//    onAbout(nil)
-	//}
 }

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"golang.org/x/crypto/ssh/agent"
 	"io"
+	"log"
 	"net"
 	"os"
 	"sync"
@@ -185,7 +186,7 @@ func (s *Cygwin) Run(ctx context.Context, sshagent agent.Agent) error {
 		go func() {
 			err := agent.ServeAgent(sshagent, conn)
 			if err != nil && err != io.EOF {
-				fmt.Println(err.Error())
+				log.Println(err.Error())
 			}
 			wg.Done()
 		}()

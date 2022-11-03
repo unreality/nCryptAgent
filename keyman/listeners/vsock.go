@@ -6,6 +6,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/sys/windows/registry"
 	"io"
+	"log"
 	"net"
 	"strings"
 	"sync"
@@ -200,7 +201,7 @@ func (s *VSock) Run(ctx context.Context, sshagent agent.Agent) error {
 		go func() {
 			err := agent.ServeAgent(sshagent, conn)
 			if err != nil && err != io.EOF {
-				fmt.Println(err.Error())
+				log.Println(err.Error())
 			}
 			wg.Done()
 		}()

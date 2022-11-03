@@ -2,12 +2,13 @@ package webauthn
 
 import (
 	"fmt"
-	"syscall"
+	"golang.org/x/sys/windows"
+	"reflect"
 	"unsafe"
 )
 
 var (
-	webauthn = syscall.MustLoadDLL("webauthn.dll")
+	webauthn = windows.MustLoadDLL("webauthn.dll")
 
 	procWebAuthNGetApiVersionNumber = webauthn.MustFindProc("WebAuthNGetApiVersionNumber")
 	//procWebAuthNIsUserVerifyingPlatformAuthenticatorAvailable = webauthn.MustFindProc("WebAuthNIsUserVerifyingPlatformAuthenticatorAvailable")
@@ -158,7 +159,7 @@ type CLIENT_DATA struct {
 	HashAlgId            *uint16
 }
 
-type AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS_V3 struct {
+type AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS struct {
 	Version             uint32
 	TimeoutMilliseconds uint32 // Time that the operation is expected to complete within.
 	// This is used as guidance, and can be overridden by the platform.
@@ -171,7 +172,7 @@ type AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS_V3 struct {
 	Flags                           uint32      // Reserved for future Use
 
 	// The following fields have been added in WEBAUTHN_AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS_VERSION_2
-	CancellationId *syscall.GUID // Cancellation Id - Optional - See WebAuthNGetCancellationId
+	CancellationId *windows.GUID // Cancellation Id - Optional - See WebAuthNGetCancellationId
 
 	// The following fields have been added in WEBAUTHN_AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS_VERSION_3
 	ExcludeCredentialList CREDENTIAL_LIST // Exclude Credential List. If present, "CredentialList" will be ignored.
@@ -256,7 +257,7 @@ type AUTHENTICATOR_GET_ASSERTION_OPTIONS struct {
 	U2fAppIdUsed *bool   // If non-NULL, then, set to TRUE if the above pwszU2fAppid was used instead of PCWSTR pwszRpId;
 
 	// The following fields have been added in WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS_VERSION_3
-	CancellationId *syscall.GUID // Cancellation Id - Optional - See WebAuthNGetCancellationId
+	CancellationId *windows.GUID // Cancellation Id - Optional - See WebAuthNGetCancellationId
 
 	// The following fields have been added in WEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS_VERSION_4
 	AllowCredentialList CREDENTIAL_LIST // Allow Credential List. If present, "CredentialList" will be ignored.
@@ -293,26 +294,24 @@ func errNoToStr(e uint32) string {
 }
 
 func UintptrToBytes(u uintptr, l uint32) []byte {
-	if u != 0 {
-		us := make([]byte, l)
-		for i, _ := range us {
-			us[i] = *(*byte)(unsafe.Pointer(u + uintptr(i)))
-		}
-		return us
-	}
-	return nil
+	var b []byte
+	slice := (*reflect.SliceHeader)(unsafe.Pointer(&b))
+	slice.Data = u
+	slice.Len = int(l)
+	slice.Cap = int(l)
 
+	return b
 }
 
 func LPCWSTR(s string) *uint16 {
-	w, _ := syscall.UTF16PtrFromString(s)
+	w, _ := windows.UTF16PtrFromString(s)
 	return w
 }
 
 func GetApiVersionNumber() (int32, error) {
 	r, _, err := procWebAuthNGetApiVersionNumber.Call()
 
-	if err != syscall.Errno(0) {
+	if err != windows.Errno(0) {
 		return 0, fmt.Errorf("WebAuthNGetApiVersionNumber returned %v", err)
 	}
 
@@ -330,25 +329,25 @@ func GetApiVersionNumber() (int32, error) {
 //_In_opt_    PCWEBAUTHN_AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS    pWebAuthNMakeCredentialOptions,
 //_Outptr_result_maybenull_ PWEBAUTHN_CREDENTIAL_ATTESTATION      *ppWebAuthNCredentialAttestation);
 func AuthenticatorMakeCredential(hwnd uintptr,
-	entity_information RP_ENTITY_INFORMATION,
-	user_entity_information USER_ENTITY_INFORMATION,
-	cose_parameters COSE_CREDENTIAL_PARAMETERS,
-	client_data CLIENT_DATA,
-	make_credential_options AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS_V3) (*CREDENTIAL_ATTESTATION, error) {
+	entityInformation RP_ENTITY_INFORMATION,
+	userEntityInformation USER_ENTITY_INFORMATION,
+	coseParameters COSE_CREDENTIAL_PARAMETERS,
+	clientData CLIENT_DATA,
+	makeCredentialOptions AUTHENTICATOR_MAKE_CREDENTIAL_OPTIONS) (*CREDENTIAL_ATTESTATION, error) {
 
 	var result uintptr
 
 	r, _, err := procWebAuthNAuthenticatorMakeCredential.Call(
 		hwnd,
-		uintptr(unsafe.Pointer(&entity_information)),
-		uintptr(unsafe.Pointer(&user_entity_information)),
-		uintptr(unsafe.Pointer(&cose_parameters)),
-		uintptr(unsafe.Pointer(&client_data)),
-		uintptr(unsafe.Pointer(&make_credential_options)),
+		uintptr(unsafe.Pointer(&entityInformation)),
+		uintptr(unsafe.Pointer(&userEntityInformation)),
+		uintptr(unsafe.Pointer(&coseParameters)),
+		uintptr(unsafe.Pointer(&clientData)),
+		uintptr(unsafe.Pointer(&makeCredentialOptions)),
 		uintptr(unsafe.Pointer(&result)),
 	)
 
-	if err != syscall.Errno(0) {
+	if err != windows.Errno(0) {
 		return nil, fmt.Errorf("WebAuthNGetApiVersionNumber returned %v", err)
 	}
 
@@ -368,7 +367,7 @@ func AuthenticatorMakeCredential(hwnd uintptr,
 //_In_opt_    PCWEBAUTHN_AUTHENTICATOR_GET_ASSERTION_OPTIONS      pWebAuthNGetAssertionOptions,
 //_Outptr_result_maybenull_ PWEBAUTHN_ASSERTION                   *ppWebAuthNAssertion);
 func AuthenticatorGetAssertion(hwnd uintptr, RpId string, client_data CLIENT_DATA, assertion_options AUTHENTICATOR_GET_ASSERTION_OPTIONS) (*ASSERTION, error) {
-	rpIdPtr, _ := syscall.UTF16PtrFromString(RpId)
+	rpIdPtr, _ := windows.UTF16PtrFromString(RpId)
 	var result uintptr
 	r, _, err := procWebAuthNAuthenticatorGetAssertion.Call(
 		hwnd,
@@ -378,7 +377,7 @@ func AuthenticatorGetAssertion(hwnd uintptr, RpId string, client_data CLIENT_DAT
 		uintptr(unsafe.Pointer(&result)),
 	)
 
-	if err != syscall.Errno(0) {
+	if err != windows.Errno(0) {
 		return nil, fmt.Errorf("WebAuthNGetApiVersionNumber returned %v", err)
 	}
 
@@ -392,7 +391,7 @@ func AuthenticatorGetAssertion(hwnd uintptr, RpId string, client_data CLIENT_DAT
 func FreeCredentialAttestation(attestation *CREDENTIAL_ATTESTATION) error {
 	r, _, err := procWebAuthNFreeCredentialAttestation.Call(uintptr(unsafe.Pointer(attestation)))
 
-	if err != syscall.Errno(0) {
+	if err != windows.Errno(0) {
 		return fmt.Errorf("WebAuthNGetApiVersionNumber returned %v", err)
 	}
 
@@ -406,7 +405,7 @@ func FreeCredentialAttestation(attestation *CREDENTIAL_ATTESTATION) error {
 func FreeAssertion(assertion *ASSERTION) error {
 	r, _, err := procWebAuthNFreeAssertion.Call(uintptr(unsafe.Pointer(assertion)))
 
-	if err != syscall.Errno(0) {
+	if err != windows.Errno(0) {
 		return fmt.Errorf("WebAuthNGetApiVersionNumber returned %v", err)
 	}
 

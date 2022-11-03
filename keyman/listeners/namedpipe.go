@@ -2,10 +2,10 @@ package listeners
 
 import (
 	"context"
-	"fmt"
 	"github.com/Microsoft/go-winio"
 	"golang.org/x/crypto/ssh/agent"
 	"io"
+	"log"
 	"net"
 	"sync"
 )
@@ -81,7 +81,7 @@ func (s *NamedPipe) Run(ctx context.Context, sshagent agent.Agent) error {
 		go func() {
 			s.lastError = agent.ServeAgent(sshagent, conn)
 			if s.lastError != nil && s.lastError != io.EOF {
-				fmt.Println(s.lastError.Error())
+				log.Println(s.lastError.Error())
 			}
 			wg.Done()
 		}()

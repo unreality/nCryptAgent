@@ -30,24 +30,9 @@ func (p *Pageant) Name() string {
 	return "Pageant/PuTTY"
 }
 
-func (p *Pageant) Status() string {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (p *Pageant) Stop() error {
 	p.win.Close()
 	return nil
-}
-
-func (p *Pageant) Start() error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (p *Pageant) Restart() error {
-	//TODO implement me
-	panic("implement me")
 }
 
 func (p *Pageant) Run(ctx context.Context, sshagent agent.Agent) error {

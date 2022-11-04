@@ -20,7 +20,6 @@ import (
 )
 
 var noTrayAvailable = false
-var startTime = time.Now()
 
 func RunUI() {
 	runtime.LockOSThread()
@@ -97,7 +96,6 @@ func RunUI() {
 	}
 	mtw.Dispose()
 	quitChan <- 0
-
 }
 
 func onQuit() {

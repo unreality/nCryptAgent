@@ -31,21 +31,8 @@ func (s *NamedPipe) Name() string {
 	return "Named Pipe"
 }
 
-func (s *NamedPipe) Status() string {
-	if s.running {
-		return STATUS_OK
-	} else {
-		return STATUS_STOPPED
-	}
-}
-
 func (s *NamedPipe) Stop() error {
 	return s.pipe.Close()
-}
-
-func (s *NamedPipe) Restart() error {
-	//TODO implement me
-	panic("implement me")
 }
 
 func (s *NamedPipe) Run(ctx context.Context, sshagent agent.Agent) error {

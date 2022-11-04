@@ -116,7 +116,6 @@ type Key struct {
 }
 
 func (k *Key) TakeFocus() bool {
-
 	if k.hwnd != 0 {
 		if k.Type == "NCRYPT" && k.signer != nil {
 			if ncryptSigner, ok := (*k.signer).(*Signer); ok {
@@ -740,6 +739,8 @@ func (km *KeyManager) CreateNewNCryptKey(keyName string, containerName string, p
 		return nil, fmt.Errorf("creating keys on smartcards is not supported")
 	}
 
+	//TODO: investigate replacing this with NCryptIsAlgSupported()
+	//https://learn.microsoft.com/en-us/windows/win32/api/ncrypt/nf-ncrypt-ncryptisalgsupported
 	algorithmOK := false
 	for _, i := range ncrypt.AVAILABLE_ALGORITHMS {
 		if i == algorithm {
@@ -777,14 +778,9 @@ func (km *KeyManager) CreateNewNCryptKey(keyName string, containerName string, p
 			return nil, err
 		}
 		bytesStr := make([]byte, len(utf16Str)*2)
-		j := 0
-		for _, utf16 := range utf16Str {
-			b := make([]byte, 2)
+		for i, utf16 := range utf16Str {
 			// LPCSTR (Windows' representation of utf16) is always little endian.
-			binary.LittleEndian.PutUint16(b, utf16)
-			bytesStr[j] = b[0]
-			bytesStr[j+1] = b[1]
-			j += 2
+			binary.LittleEndian.PutUint16(bytesStr[i*2:i*2+2], utf16)
 		}
 
 		digest := sha1.Sum(bytesStr[:len(bytesStr)-2])
@@ -1176,7 +1172,6 @@ func (km *KeyManager) DeleteKey(keyToDelete *Key, deleteFromKeystore bool) error
 	delete(km.Keys, keyToDelete.Name)
 
 	return km.SaveConfig()
-
 }
 
 func (km *KeyManager) SetPinTimeout(timeout int) {

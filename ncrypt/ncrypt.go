@@ -33,7 +33,9 @@ const (
 
 	// Errors
 	NTE_NOT_SUPPORTED         = uint32(0x80090029)
+	NTE_NO_MEMORY             = uint32(0x8009000E)
 	NTE_INVALID_PARAMETER     = uint32(0x80090027)
+	NTE_INVALID_HANDLE        = uint32(0x80090026)
 	NTE_BAD_FLAGS             = uint32(0x80090009)
 	NTE_NO_MORE_ITEMS         = uint32(0x8009002A)
 	NTE_BAD_KEYSET            = uint32(0x80090016)
@@ -229,7 +231,6 @@ func NCryptFreeObject(h uintptr) error {
 }
 
 func NCryptFreeBuffer(pvInput uintptr) (err error) {
-
 	_, _, e1 := procNCryptFreeBuffer.Call(
 		pvInput,
 		0,
@@ -257,7 +258,6 @@ func NCryptDeleteKey(keyHandle uintptr, flags uint32) error {
 }
 
 func NCryptCreatePersistedKey(provisionerHandle uintptr, containerName string, algorithmName string, legacyKeySpec uint32, flags uint32) (uintptr, error) {
-
 	var kh uintptr
 	var kn uintptr = 0
 
@@ -477,7 +477,6 @@ func NCryptGetPropertyStr(kh uintptr, property string) (string, error) {
 }
 
 func NCryptEnumKeys(provider uintptr, scope string, enumState uintptr, flags uint32) (*NCryptKeyName, uintptr, error) {
-
 	scopePtr := uintptr(0)
 	keyName := uintptr(0)
 
@@ -495,10 +494,10 @@ func NCryptEnumKeys(provider uintptr, scope string, enumState uintptr, flags uin
 	switch uint32(r) {
 	case NTE_BAD_FLAGS:
 		return nil, enumState, fmt.Errorf("NTE_BAD_FLAGS")
-	//case NTE_INVALID_HANDLE:
-	//    return NCryptKeyName, ppEnumState, fmt.Errorf("NTE_BAD_FLAGS")
-	//case NTE_NO_MEMORY:
-	//    return NCryptKeyName, ppEnumState, fmt.Errorf("NTE_BAD_FLAGS")
+	case NTE_INVALID_HANDLE:
+		return nil, enumState, fmt.Errorf("NTE_INVALID_HANDLE")
+	case NTE_NO_MEMORY:
+		return nil, enumState, fmt.Errorf("NTE_NO_MEMORY")
 	case NTE_NO_MORE_ITEMS:
 		_ = NCryptFreeBuffer(enumState)
 		return nil, uintptr(0), nil
@@ -509,10 +508,6 @@ func NCryptEnumKeys(provider uintptr, scope string, enumState uintptr, flags uin
 	if r != 0 {
 		return nil, enumState, err
 	}
-
-	//if err != windows.Errno(0) {
-	//    return nil, enumState, fmt.Errorf("err is %w", err)
-	//}
 
 	ppKeyName := (**NCryptKeyName)(unsafe.Pointer(&keyName))
 
@@ -576,7 +571,6 @@ func FreeCertContext(ctx *windows.CertContext) error {
 }
 
 func CryptFindCertificateKeyProvInfo(certContext *windows.CertContext) error {
-
 	r, _, err := procCryptFindCertificateKeyProvInfo.Call(
 		uintptr(unsafe.Pointer(certContext)),
 		uintptr(CRYPT_ACQUIRE_PREFER_NCRYPT_KEY_FLAG),

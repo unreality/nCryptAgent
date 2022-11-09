@@ -59,7 +59,7 @@ OpenSSH has a few specific options for `sk-ssh-ed25519@openssh.com` and `sk-ecds
 
 ### Resident Keys
 
-You can create a resident key by selecting the appropriate checkbox when creating the key. Unfortunately the Windows WebAuthN API only supports retrieving credentials in v4 or greater (i.e. Windows 11 22H2 is required), so support for retrieving credentials is not yet in nCryptAgent.
+You can create a resident key by selecting the appropriate checkbox when creating the key. Unfortunately the Windows WebAuthN API doesn't support retrieving the required Public Key information from security keys.
 
 ## Getting Started with Smart Cards
 
@@ -90,8 +90,8 @@ If you have a key on your smart card (for instance you have existing credentials
 
 Once you have a key added to nCryptAgent you can use it by configuring your SSH client to use nCryptAgent as its SSH agent. For OpenSSH for Windows and PuTTY this should work automatically, as long as those listeners are enabled in the **Config** tab. For WSL2 and Cygwin, you will need to set your `SSH_AUTH_SOCK` environment variable. The commands for doing this are available in the **Config** tab.
 
-* If you are using the Named Pipe listener, ensure the `OpenSSH Authentication Agent` service is stopped in `Services`
-* If you are using the Pageant listener, ensure pageant is not running
+* If you are using the **Named Pipe** listener, ensure the `OpenSSH Authentication Agent` service is stopped in `Services`
+* If you are using the **Pageant** listener, ensure pageant is not running
 
 ## OpenSSH Certificates
 

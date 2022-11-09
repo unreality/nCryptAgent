@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"golang.org/x/crypto/ssh/agent"
 	"io"
+	"log"
 	"net"
 	"os"
 	"sync"
@@ -38,24 +39,9 @@ func (s *Cygwin) Name() string {
 	return "cygwin/msys/GIT for windows"
 }
 
-func (s *Cygwin) Status() string {
-	//TODO implement me
-	panic("implement me")
-}
-
 func (s *Cygwin) Stop() error {
 	s.running = false
 	return s.netListener.Close()
-}
-
-func (s *Cygwin) Start() error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (s *Cygwin) Restart() error {
-	//TODO implement me
-	panic("implement me")
 }
 
 func SetListenerDeadline(l net.Listener, t time.Time) error {
@@ -185,7 +171,7 @@ func (s *Cygwin) Run(ctx context.Context, sshagent agent.Agent) error {
 		go func() {
 			err := agent.ServeAgent(sshagent, conn)
 			if err != nil && err != io.EOF {
-				fmt.Println(err.Error())
+				log.Println(err.Error())
 			}
 			wg.Done()
 		}()

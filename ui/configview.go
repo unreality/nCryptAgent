@@ -36,7 +36,7 @@ func NewGlobalConfView(parent walk.Container) (*GlobalConfView, error) {
 		return nil, err
 	}
 	layout.SetRange(pinTimeoutLabel, walk.Rectangle{0, 0, 1, 1})
-	pinTimeoutLabel.SetTextAlignment(walk.AlignHFarVCenter)
+	pinTimeoutLabel.SetTextAlignment(walk.AlignHNearVCenter)
 	pinTimeoutLabel.SetText(fmt.Sprintf("&PIN Cache Duration:"))
 	pinTimeoutLabel.SetToolTipText("Amount of time in seconds the PIN is cached for. Set a duration in seconds, 0 for no cache, or -1 for indefinite caching.")
 
@@ -45,6 +45,7 @@ func NewGlobalConfView(parent walk.Container) (*GlobalConfView, error) {
 	}
 	layout.SetRange(gcv.PinTimeoutEdit, walk.Rectangle{1, 0, 1, 1})
 	gcv.PinTimeoutEdit.SetText("0")
+	gcv.PinTimeoutEdit.SetAlignment(walk.AlignHFarVFar)
 
 	if err := walk.InitWrapperWindow(gcv); err != nil {
 		return nil, err
@@ -87,7 +88,7 @@ func NewPageantConfView(parent walk.Container) (*PageantConfView, error) {
 		return nil, err
 	}
 	layout.SetRange(enabledLabel, walk.Rectangle{0, 0, 1, 1})
-	enabledLabel.SetTextAlignment(walk.AlignHNearVCenter)
+	enabledLabel.SetTextAlignment(walk.AlignHNearVFar)
 	enabledLabel.SetText(fmt.Sprintf("&Enabled:"))
 
 	if cv.ListenerEnabled, err = walk.NewCheckBox(cv); err != nil {
@@ -95,6 +96,7 @@ func NewPageantConfView(parent walk.Container) (*PageantConfView, error) {
 	}
 	layout.SetRange(cv.ListenerEnabled, walk.Rectangle{1, 0, 1, 1})
 	cv.ListenerEnabled.SetChecked(true)
+	cv.ListenerEnabled.SetAlignment(walk.AlignHFarVFar)
 
 	if err := walk.InitWrapperWindow(cv); err != nil {
 		return nil, err
@@ -145,6 +147,7 @@ func NewNamedPipeConfView(parent walk.Container) (*NamedPipeConfView, error) {
 	}
 	layout.SetRange(cv.ListenerEnabled, walk.Rectangle{1, 0, 1, 1})
 	cv.ListenerEnabled.SetChecked(true)
+	cv.ListenerEnabled.SetAlignment(walk.AlignHFarVFar)
 
 	if err := walk.InitWrapperWindow(cv); err != nil {
 		return nil, err
@@ -196,6 +199,7 @@ func NewVSockConfView(parent walk.Container) (*VSockConfView, error) {
 	}
 	layout.SetRange(cv.ListenerEnabled, walk.Rectangle{1, 0, 1, 1})
 	cv.ListenerEnabled.SetChecked(true)
+	cv.ListenerEnabled.SetAlignment(walk.AlignHFarVFar)
 
 	// Shell script
 	shellScriptLabel, err := walk.NewTextLabel(cv)
@@ -267,6 +271,7 @@ func NewCygwinConfView(parent walk.Container) (*CygwinConfView, error) {
 	layout.SetRange(cv.ListenerEnabled, walk.Rectangle{1, 0, 1, 1})
 	cv.ListenerEnabled.SetAlignment(walk.AlignHNearVCenter)
 	cv.ListenerEnabled.SetChecked(true)
+	cv.ListenerEnabled.SetAlignment(walk.AlignHFarVFar)
 
 	// Shell script
 	shellScriptLabel, err := walk.NewTextLabel(cv)

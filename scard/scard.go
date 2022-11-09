@@ -3,6 +3,7 @@ package scard
 import (
 	"fmt"
 	"golang.org/x/sys/windows"
+	"log"
 	"syscall"
 	"unsafe"
 )
@@ -98,7 +99,7 @@ func SCardFreeMemory(ptr uintptr) error {
 	)
 
 	if err != syscall.Errno(0) {
-		fmt.Printf("err is %v", err)
+		log.Printf("SCardFreeMemory returned %v", err)
 		return err
 	}
 

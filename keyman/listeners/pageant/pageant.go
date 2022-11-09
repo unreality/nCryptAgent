@@ -5,8 +5,8 @@ import (
 	"encoding/binary"
 	"golang.org/x/sys/windows"
 	"io"
+	"log"
 	"runtime"
-	"syscall"
 	"unsafe"
 )
 
@@ -56,7 +56,7 @@ type PageantWindow struct {
 
 func NewPageant(debug bool) (*PageantWindow, error) {
 
-	classNamePtr, err := syscall.UTF16PtrFromString(className)
+	classNamePtr, err := windows.UTF16PtrFromString(className)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +167,7 @@ func (s *PageantWindow) wndProc(hWnd windows.Handle, message uint32, wParam, lPa
 	copyData := (*copyDataStruct)(unsafe.Pointer(lParam))
 	if copyData.dwData != agentCopydataId {
 		if s.debug {
-			println("Pageant: invalid copy data id", copyData.dwData)
+			log.Println("Pageant: invalid copy data id", copyData.dwData)
 		}
 		return 0
 	}
@@ -177,11 +177,11 @@ func (s *PageantWindow) wndProc(hWnd windows.Handle, message uint32, wParam, lPa
 		if mapName[len(mapName)-1] == 0 {
 			mapName = mapName[:len(mapName)-1]
 		}
-		println("Pageant: OpenFileMapping", copyData.lpData, copyData.cbData, string(mapName))
+		log.Println("Pageant: OpenFileMapping", copyData.lpData, copyData.cbData, string(mapName))
 	}
 	fileMap, err := OpenFileMapping(fileMapAllAccess, 0, copyData.lpData)
 	if err != nil {
-		println("Pageant: OpenFileMapping error", err.Error())
+		log.Println("Pageant: OpenFileMapping error", err.Error())
 		return
 	}
 	defer func() {
@@ -190,30 +190,30 @@ func (s *PageantWindow) wndProc(hWnd windows.Handle, message uint32, wParam, lPa
 	// check security
 	ourself, err := GetUserSID()
 	if err != nil {
-		println("Pageant: GetUserSID error", err.Error())
+		log.Println("Pageant: GetUserSID error", err.Error())
 		return
 	}
 	ourself2, err := GetDefaultSID()
 	if err != nil {
-		println("Pageant: GetDefaultSID error", err.Error())
+		log.Println("Pageant: GetDefaultSID error", err.Error())
 		return
 	}
 	mapOwner, err := GetHandleSID(fileMap)
 	if err != nil {
-		println("Pageant: GetHandleSID error", err.Error())
+		log.Println("Pageant: GetHandleSID error", err.Error())
 		return
 	}
 	if s.debug {
-		println("Pageant: ourSID:", ourself.String(), "ourSID2:", ourself2.String(), "mapOwnerSID:", mapOwner.String())
+		log.Println("Pageant: ourSID:", ourself.String(), "ourSID2:", ourself2.String(), "mapOwnerSID:", mapOwner.String())
 	}
 	if !windows.EqualSid(mapOwner, ourself) && !windows.EqualSid(mapOwner, ourself2) {
-		println("Pageant: wrong owning SID of file mapping")
+		log.Println("Pageant: wrong owning SID of file mapping")
 		return
 	}
 	// get map view
 	sharedMemory, err := windows.MapViewOfFile(fileMap, fileMapWrite, 0, 0, 0)
 	if err != nil {
-		println("Pageant: MapViewOfFile error", err.Error())
+		log.Println("Pageant: MapViewOfFile error", err.Error())
 		return
 	}
 	defer windows.UnmapViewOfFile(sharedMemory)
@@ -222,7 +222,7 @@ func (s *PageantWindow) wndProc(hWnd windows.Handle, message uint32, wParam, lPa
 	size := binary.BigEndian.Uint32(sharedMemoryArray[:4])
 	size += 4
 	if size > agentMaxMsglen {
-		println("Pageant: invalid message length", size)
+		log.Println("Pageant: invalid message length", size)
 		return
 	}
 

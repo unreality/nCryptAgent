@@ -19,8 +19,6 @@ type ListModel struct {
 	keys []*keyman.Key
 }
 
-//var cachedListViewIconsForWidthAndState = make(map[widthAndState]*walk.Bitmap)
-
 func (t *ListModel) RowCount() int {
 	return len(t.keys)
 }
@@ -31,14 +29,6 @@ func (t *ListModel) Value(row, col int) interface{} {
 	}
 	return t.keys[row].Name
 }
-
-//func (t *ListModel) Sort(col int, order walk.SortOrder) error {
-//    sort.SliceStable(t.keys, func(i, j int) bool {
-//        return conf.TunnelNameIsLess(t.keys[i].Name, t.keys[j].Name)
-//    })
-//
-//    return t.SorterBase.Sort(col, order)
-//}
 
 type ListView struct {
 	*walk.TableView
@@ -78,18 +68,6 @@ func NewListView(parent walk.Container, keyManager *keyman.KeyManager) (*ListVie
 	return keysView, nil
 }
 
-//func (tv *ListView) Dispose() {
-//    if tv.tunnelChangedCB != nil {
-//        tv.tunnelChangedCB.Unregister()
-//        tv.tunnelChangedCB = nil
-//    }
-//    if tv.tunnelsChangedCB != nil {
-//        tv.tunnelsChangedCB.Unregister()
-//        tv.tunnelsChangedCB = nil
-//    }
-//    tv.TableView.Dispose()
-//}
-
 func (tv *ListView) CurrentKey() *keyman.Key {
 	idx := tv.CurrentIndex()
 	if idx == -1 {
@@ -128,11 +106,6 @@ func (tv *ListView) StyleCell(style *walk.CellStyle) {
 	bitmapWidth := tv.IntFrom96DPI(16)
 
 	if win.IsAppThemed() {
-		//cacheKey := widthAndState{bitmapWidth, state}
-		//if cacheValue, ok := cachedListViewIconsForWidthAndState[cacheKey]; ok {
-		//    style.Image = cacheValue
-		//    return
-		//}
 		bitmap, err := walk.NewBitmapWithTransparentPixelsForDPI(walk.Size{bitmapWidth, bitmapWidth}, tv.DPI())
 		if err != nil {
 			return

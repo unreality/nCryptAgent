@@ -124,10 +124,6 @@ func NewManageKeysWindow(keyManager *keyman.KeyManager) (*ManageKeysWindow, erro
 	return mtw, nil
 }
 
-//func (mtw *ManageKeysWindow) Dispose() {
-//    mtw.FormBase.Dispose()
-//}
-
 func (mtw *ManageKeysWindow) WndProc(hwnd win.HWND, msg uint32, wParam, lParam uintptr) uintptr {
 	switch msg {
 	case win.WM_QUERYENDSESSION:

@@ -7,6 +7,7 @@ import (
 	"golang.org/x/crypto/cryptobyte"
 	"golang.org/x/crypto/cryptobyte/asn1"
 	"io"
+	"log"
 	"math/big"
 	"ncryptagent/ncrypt"
 	"time"
@@ -91,11 +92,11 @@ func (s *Signer) Sign(_ io.Reader, digest []byte, opts crypto.SignerOpts) ([]byt
 
 func (s *Signer) handlePinTimer() {
 	if !s.timeractive && s.timeout > 0 {
-		fmt.Printf("Starting pin cache purge timer: %ds\n", s.timeout)
+		log.Printf("Starting pin cache purge timer: %ds\n", s.timeout)
 		time.AfterFunc(time.Second*time.Duration(s.timeout), func() {
 			s.timeractive = false
 			ncrypt.NCryptSetProperty(s.keyHandle, ncrypt.NCRYPT_PIN_PROPERTY, "", 0)
-			fmt.Printf("PIN Cache purged\n")
+			log.Printf("PIN Cache purged\n")
 		})
 		s.timeractive = true
 	} else if s.timeout == 0 {

@@ -6,6 +6,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/sys/windows/registry"
 	"io"
+	"log"
 	"net"
 	"strings"
 	"sync"
@@ -200,57 +201,12 @@ func (s *VSock) Run(ctx context.Context, sshagent agent.Agent) error {
 		go func() {
 			err := agent.ServeAgent(sshagent, conn)
 			if err != nil && err != io.EOF {
-				fmt.Println(err.Error())
+				log.Println(err.Error())
 			}
 			wg.Done()
 		}()
 	}
 }
-
-//func (s *VSock) onClick() {
-//	if !s.running {
-//		s.checkHvService()
-//		return
-//	}
-//
-//	// socat 1.7.4 support vsock,
-//	// `SOCKET-CONNECT` can be replaced with `VSOCK-CONNECT:2:0x22223333`
-//	help := `export SSH_AUTH_SOCK=/tmp/wincrypt-hv.sock
-//ss -lnx | grep -q $SSH_AUTH_SOCK
-//if [ $? -ne 0 ]; then
-//	rm -f $SSH_AUTH_SOCK
-//  (setsid nohup socat UNIX-LISTEN:$SSH_AUTH_SOCK,fork SOCKET-CONNECT:40:0:x0000x33332222x02000000x00000000 >/dev/null 2>&1)
-//fi`
-//
-//}
-
-//func (s *VSock) checkHvService() {
-//	if CheckHVService() {
-//		utils.MessageBox("Error:", s.AppId().String()+" agent doesn't work!", utils.MB_ICONWARNING)
-//		return
-//	}
-//
-//	if utils.MessageBox(s.AppId().FullName()+":", s.AppId().String()+" agent is not working! Do you want to enable it?", utils.MB_OKCANCEL) == utils.IDOK {
-//		if err := utils.RunMeElevatedWithArgs("-i"); err != nil {
-//			utils.MessageBox("Install Service Error:", err.Error(), utils.MB_ICONERROR)
-//		}
-//	}
-//}
-
-//func ConnectHyperV() (net.Conn, error) {
-//
-//    s := winio.HvsockAddr{
-//        VMID:      winio.HvsockGUIDParent(),
-//        ServiceID: HyperVServiceGUID,
-//    }
-//
-//    conn, err := winio.Dial(s)
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	return conn, nil
-//}
 
 const afHvSock = 34      // AF_HYPERV
 const sHvProtocolRaw = 1 // HV_PROTOCOL_RAW

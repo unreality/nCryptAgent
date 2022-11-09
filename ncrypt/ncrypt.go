@@ -4,11 +4,10 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/elliptic"
+	"encoding/binary"
 	"fmt"
 	"golang.org/x/sys/windows"
 	"log"
-	"syscall"
-	"unicode/utf16"
 	"unsafe"
 )
 
@@ -34,7 +33,9 @@ const (
 
 	// Errors
 	NTE_NOT_SUPPORTED         = uint32(0x80090029)
+	NTE_NO_MEMORY             = uint32(0x8009000E)
 	NTE_INVALID_PARAMETER     = uint32(0x80090027)
+	NTE_INVALID_HANDLE        = uint32(0x80090026)
 	NTE_BAD_FLAGS             = uint32(0x80090009)
 	NTE_NO_MORE_ITEMS         = uint32(0x8009002A)
 	NTE_BAD_KEYSET            = uint32(0x80090016)
@@ -201,10 +202,10 @@ func errNoToStr(e uint32) string {
 	}
 }
 
-// wide returns a pointer to a a uint16 representing the equivalent
+// wide returns a pointer to a uint16 representing the equivalent
 // to a Windows LPCWSTR.
 func wide(s string) *uint16 {
-	w, _ := syscall.UTF16PtrFromString(s)
+	w, _ := windows.UTF16PtrFromString(s)
 	return w
 }
 
@@ -230,15 +231,14 @@ func NCryptFreeObject(h uintptr) error {
 }
 
 func NCryptFreeBuffer(pvInput uintptr) (err error) {
-
 	_, _, e1 := procNCryptFreeBuffer.Call(
 		pvInput,
 		0,
 		0,
 	)
 
-	if e1 != syscall.Errno(0) {
-		fmt.Printf("err is %v", e1)
+	if e1 != windows.Errno(0) {
+		log.Printf("err is %v", e1)
 		return e1
 	}
 
@@ -258,7 +258,6 @@ func NCryptDeleteKey(keyHandle uintptr, flags uint32) error {
 }
 
 func NCryptCreatePersistedKey(provisionerHandle uintptr, containerName string, algorithmName string, legacyKeySpec uint32, flags uint32) (uintptr, error) {
-
 	var kh uintptr
 	var kn uintptr = 0
 
@@ -335,7 +334,6 @@ func NCryptSetProperty(keyHandle uintptr, propertyName string, propertyValue int
 	}
 
 	if byteVal, isBytes := propertyValue.([]byte); isBytes {
-		fmt.Printf("Setting bytes\n")
 		r, _, err := procNCryptSetProperty.Call(
 			keyHandle,
 			uintptr(unsafe.Pointer(wide(propertyName))),
@@ -457,13 +455,16 @@ func NCryptGetPropertyHandle(kh uintptr, property string) (uintptr, error) {
 
 func NCryptGetPropertyInt(kh uintptr, property string) (int, error) {
 	buf, err := getProperty(kh, wide(property))
+
 	if err != nil {
 		return 0, err
 	}
 	if len(buf) < 1 {
 		return 0, fmt.Errorf("empty result")
 	}
-	return **(**int)(unsafe.Pointer(&buf)), nil
+
+	//TODO maybe someone wants to run this on ARM one day..so this might break
+	return int(binary.LittleEndian.Uint32(buf)), nil
 }
 
 func NCryptGetPropertyStr(kh uintptr, property string) (string, error) {
@@ -476,7 +477,6 @@ func NCryptGetPropertyStr(kh uintptr, property string) (string, error) {
 }
 
 func NCryptEnumKeys(provider uintptr, scope string, enumState uintptr, flags uint32) (*NCryptKeyName, uintptr, error) {
-
 	scopePtr := uintptr(0)
 	keyName := uintptr(0)
 
@@ -494,10 +494,10 @@ func NCryptEnumKeys(provider uintptr, scope string, enumState uintptr, flags uin
 	switch uint32(r) {
 	case NTE_BAD_FLAGS:
 		return nil, enumState, fmt.Errorf("NTE_BAD_FLAGS")
-	//case NTE_INVALID_HANDLE:
-	//    return NCryptKeyName, ppEnumState, fmt.Errorf("NTE_BAD_FLAGS")
-	//case NTE_NO_MEMORY:
-	//    return NCryptKeyName, ppEnumState, fmt.Errorf("NTE_BAD_FLAGS")
+	case NTE_INVALID_HANDLE:
+		return nil, enumState, fmt.Errorf("NTE_INVALID_HANDLE")
+	case NTE_NO_MEMORY:
+		return nil, enumState, fmt.Errorf("NTE_NO_MEMORY")
 	case NTE_NO_MORE_ITEMS:
 		_ = NCryptFreeBuffer(enumState)
 		return nil, uintptr(0), nil
@@ -506,13 +506,8 @@ func NCryptEnumKeys(provider uintptr, scope string, enumState uintptr, flags uin
 	}
 
 	if r != 0 {
-		fmt.Printf("r0 is %v\n", r)
 		return nil, enumState, err
 	}
-
-	//if err != syscall.Errno(0) {
-	//    return nil, enumState, fmt.Errorf("err is %w", err)
-	//}
 
 	ppKeyName := (**NCryptKeyName)(unsafe.Pointer(&keyName))
 
@@ -563,7 +558,7 @@ func FindCertificateInStore(store windows.Handle, enc, findFlags, findType uint3
 	)
 	if h == 0 {
 		// Actual error, or simply not found?
-		if errno, ok := err.(syscall.Errno); ok && uint32(errno) == CRYPT_E_NOT_FOUND {
+		if errno, ok := err.(windows.Errno); ok && uint32(errno) == CRYPT_E_NOT_FOUND {
 			return nil, nil
 		}
 		return nil, err
@@ -576,7 +571,6 @@ func FreeCertContext(ctx *windows.CertContext) error {
 }
 
 func CryptFindCertificateKeyProvInfo(certContext *windows.CertContext) error {
-
 	r, _, err := procCryptFindCertificateKeyProvInfo.Call(
 		uintptr(unsafe.Pointer(certContext)),
 		uintptr(CRYPT_ACQUIRE_PREFER_NCRYPT_KEY_FLAG),
@@ -624,40 +618,6 @@ func CertStrToName(x500Str string) ([]byte, error) {
 	return buf, nil
 }
 
-func UTF16PtrToString(p *uint16) string {
-	if p == nil {
-		return ""
-	}
-	// Find NUL terminator.
-	end := unsafe.Pointer(p)
-	var n int = 0
-	for *(*uint16)(end) != 0 {
-		end = unsafe.Pointer(uintptr(end) + unsafe.Sizeof(*p))
-		n++
-	}
-	log.Printf("String is %d long", n)
-
-	// Turn *uint16 into []uint16.
-	//var s []uint16 = (*[n]uint16)(unsafe.Pointer(p))[:]
-	var s []uint16 = (*[1<<30 - 1]uint16)(unsafe.Pointer(&p))[:n:n]
-	// Decode []uint16 into string.
-	return string(utf16.Decode(s))
-}
-
-func CStringToString(cs *uint16) (s string) {
-	if cs != nil {
-		us := make([]uint16, 0, 256)
-		for p := uintptr(unsafe.Pointer(cs)); ; p += 2 {
-			u := *(*uint16)(unsafe.Pointer(p))
-			if u == 0 {
-				return string(utf16.Decode(us))
-			}
-			us = append(us, u)
-		}
-	}
-	return ""
-}
-
 type NCryptKeyDescriptor struct {
 	Container string
 	Algorithm string
@@ -685,7 +645,7 @@ func ListKeysOnProvider(providerName string, cardReader string) ([]NCryptKeyDesc
 		var key *NCryptKeyName
 		key, enumState, err = NCryptEnumKeys(prov, scope, enumState, 0)
 
-		if errno, ok := err.(syscall.Errno); ok && uint32(errno) == 0 {
+		if errno, ok := err.(windows.Errno); ok && uint32(errno) == 0 {
 			return nil, nil
 		}
 
@@ -698,8 +658,8 @@ func ListKeysOnProvider(providerName string, cardReader string) ([]NCryptKeyDesc
 			continue
 		}
 
-		keyName := CStringToString(key.Name)
-		keyAlg := CStringToString(key.Algid)
+		keyName := windows.UTF16PtrToString(key.Name)
+		keyAlg := windows.UTF16PtrToString(key.Algid)
 
 		ret = append(ret, NCryptKeyDescriptor{
 			Container: keyName,

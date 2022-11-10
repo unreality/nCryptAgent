@@ -53,7 +53,6 @@ func NewConfPageView(parent walk.Container) (*ConfPageView, error) {
 		return nil, err
 	}
 
-	//walk.NewHSpacer(cpv)
 	if cpv.saveButton, err = walk.NewPushButton(cpv); err != nil {
 		return nil, err
 	}
@@ -67,12 +66,6 @@ func NewConfPageView(parent walk.Container) (*ConfPageView, error) {
 
 type ConfPage struct {
 	*walk.TabPage
-	//keyView       *KeyView
-	//fillerButton  *walk.PushButton
-	//fillerHandler func()
-	//
-	//fillerContainer     *walk.Composite
-	//currentKeyContainer *walk.Composite
 	keyManager   *keyman.KeyManager
 	confPageView *ConfPageView
 
@@ -129,17 +122,20 @@ func (cp *ConfPage) onSaveConfigClicked() {
 	cp.keyManager.EnableListener(listeners.TYPE_CYGWIN, cp.confPageView.cygwinConfView.ListenerEnabled.Checked())
 
 	cp.keyManager.SaveConfig()
+
+	cp.onTabSelected() // refresh the view
 }
 
 func (cp *ConfPage) onTabSelected() {
 	if cp.confPageView.Visible() {
 		cp.confPageView.vsockConfView.ShellScript.SetText(
 			fmt.Sprintf(
-				"export SSH_AUTH_SOCK=/tmp/ssh-agent-hv.sock\r\n" +
-					"ss -lnx | grep -q $SSH_AUTH_SOCK\r\nif [ $? -ne 0 ]; then\r\n" +
-					"  rm -f $SSH_AUTH_SOCK\r\n" +
-					"  (setsid -f nohup socat UNIX-LISTEN:$SSH_AUTH_SOCK,fork VSOCK-CONNECT:2:0x22223333 >/dev/null 2>&1)\r\n" +
-					"fi\r\n"))
+				"# Ensure you have socat version >= 1.7.4 installed in your WSL2 environment\r\n"+
+					"export SSH_AUTH_SOCK=/tmp/ssh-agent-hv.sock\r\n"+
+					"ss -lnx | grep -q $SSH_AUTH_SOCK\r\nif [ $? -ne 0 ]; then\r\n"+
+					"  rm -f $SSH_AUTH_SOCK\r\n"+
+					"  (setsid -f nohup socat UNIX-LISTEN:$SSH_AUTH_SOCK,fork VSOCK-CONNECT:2:0x%x >/dev/null 2>&1)\r\n"+
+					"fi\r\n", listeners.VSockServicePort))
 		cp.confPageView.cygwinConfView.ShellScript.SetText(fmt.Sprintf("export SSH_AUTH_SOCK=\"%s\"", cp.keyManager.CygwinSocketLocation()))
 
 		cp.confPageView.pageantConfView.ListenerEnabled.SetChecked(cp.keyManager.GetListenerEnabled(listeners.TYPE_PAGEANT))

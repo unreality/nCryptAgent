@@ -7,6 +7,7 @@ package ui
 
 import (
 	"fmt"
+	"log"
 	"ncryptagent/keyman"
 	"os"
 	"path/filepath"
@@ -43,6 +44,14 @@ func RunUI() {
 		return
 	}
 	configPath := filepath.Join(homeDir, "nCryptAgent/config.json")
+	logPath := filepath.Join(homeDir, "nCryptAgent/nCryptAgent.log")
+
+	f, err := os.OpenFile(logPath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	if err == nil {
+		log.Default().SetOutput(f)
+	} else {
+		log.Printf("Could not open log file, logging to STDOUT")
+	}
 
 	km, err := keyman.NewKeyManager(configPath)
 	if err != nil {
@@ -66,6 +75,13 @@ func RunUI() {
 		}
 	}
 
+	err = km.Start()
+	if err != nil {
+		showErrorCustom(nil, "Unable to start KeyManager", fmt.Sprintf("%s", err))
+		return
+	}
+
+	mtw.ReloadKeys()
 	km.SetHwnd(mtw.Handle())
 
 	if tray == nil {

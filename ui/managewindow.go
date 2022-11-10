@@ -143,3 +143,7 @@ func (mtw *ManageKeysWindow) WndProc(hwnd win.HWND, msg uint32, wParam, lParam u
 
 	return mtw.FormBase.WndProc(hwnd, msg, wParam, lParam)
 }
+
+func (mtw *ManageKeysWindow) ReloadKeys() {
+	mtw.keysPage.listView.Load(false)
+}

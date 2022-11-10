@@ -8,6 +8,9 @@ import (
 const (
 	STATUS_OK      = "ok"
 	STATUS_STOPPED = "stopped"
+
+	ERR_DISABLE = 0
+	ERR_ABORTED = 1
 )
 
 type Listener interface {
@@ -17,3 +20,11 @@ type Listener interface {
 	LastError() error
 	Running() bool
 }
+
+type ListenerError struct {
+	msg  string // description of error
+	code int
+}
+
+func (e *ListenerError) Error() string { return e.msg }
+func (e *ListenerError) Code() int     { return e.code }

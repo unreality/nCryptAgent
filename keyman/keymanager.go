@@ -518,12 +518,16 @@ func NewKeyManager(configPath string) (*KeyManager, error) {
 	}
 
 	km := KeyManager{
-		Keys:            make(map[string]*Key),
-		providerHandles: make(map[string]uintptr),
-		configPath:      configPath,
-		config:          &kmc,
-		hwnd:            0,
-		publicKeysDir:   publicKeysDir,
+		Keys:              make(map[string]*Key),
+		providerHandles:   make(map[string]uintptr),
+		configPath:        configPath,
+		config:            &kmc,
+		hwnd:              0,
+		publicKeysDir:     publicKeysDir,
+		cygwinListener:    nil,
+		pageantListener:   nil,
+		namedPipeListener: nil,
+		vSockListener:     nil,
 	}
 	km.providerHandles = make(map[string]uintptr)
 	km.configPath = configPath
@@ -534,33 +538,48 @@ func NewKeyManager(configPath string) (*KeyManager, error) {
 		mu:     sync.Mutex{},
 	}
 
-	km.namedPipeListener = new(listeners.NamedPipe)
-	km.pageantListener = new(listeners.Pageant)
-	km.cygwinListener = new(listeners.Cygwin)
-	km.cygwinListener.Sockfile = filepath.Join(filepath.Dir(km.configPath), "cygwin-agent.sock")
-	km.vSockListener = new(listeners.VSock)
+	return &km, nil
+}
 
+func (km *KeyManager) Start() error {
+	saveConfig := false
 	km.lctx, km.cancel = context.WithCancel(context.Background())
 
 	km.lwg = new(sync.WaitGroup)
 
 	if km.config.CygwinEnabled {
-		km.StartListener(km.cygwinListener)
+		_, disableListenerInConfig, _ := km.StartListener(listeners.TYPE_CYGWIN)
+		if disableListenerInConfig {
+			km.config.CygwinEnabled = false
+			saveConfig = true
+		}
 	}
 
 	if km.config.VSockEnabled {
-		km.StartListener(km.vSockListener)
+		_, disableListenerInConfig, _ := km.StartListener(listeners.TYPE_VSOCK)
+		if disableListenerInConfig {
+			km.config.VSockEnabled = false
+			saveConfig = true
+		}
 	}
 
 	if km.config.NamedPipeEnabled {
-		km.StartListener(km.namedPipeListener)
+		_, disableListenerInConfig, _ := km.StartListener(listeners.TYPE_NAMED_PIPE)
+		if disableListenerInConfig {
+			km.config.NamedPipeEnabled = false
+			saveConfig = true
+		}
 	}
 
 	if km.config.PageantEnabled {
-		km.StartListener(km.pageantListener)
+		_, disableListenerInConfig, _ := km.StartListener(listeners.TYPE_PAGEANT)
+		if disableListenerInConfig {
+			km.config.PageantEnabled = false
+			saveConfig = true
+		}
 	}
 
-	for _, k := range kmc.Keys {
+	for _, k := range km.config.Keys {
 		log.Printf("Loading key %s\n", k.Name)
 		var err error
 
@@ -571,7 +590,7 @@ func NewKeyManager(configPath string) (*KeyManager, error) {
 
 			_, err = km.getProviderHandle(k.ProviderName)
 			if err != nil {
-				return nil, fmt.Errorf("unable to open provider %s for %s: %w", k.ProviderName, k.Name, err)
+				return fmt.Errorf("unable to open provider %s for %s: %w", k.ProviderName, k.Name, err)
 			}
 
 			_, err = km.LoadNCryptKey(k)
@@ -603,10 +622,63 @@ func NewKeyManager(configPath string) (*KeyManager, error) {
 		}
 	}
 
-	return &km, nil
+	if saveConfig {
+		km.SaveConfig()
+	}
+
+	return nil
 }
 
-func (km *KeyManager) StartListener(listener listeners.Listener) {
+// StartListener attempts top start a listenerType, returning (success, disableListenerInConfig, error)
+// If disableListenerInConfig is true, the caller should disable the listener in the config and save
+func (km *KeyManager) StartListener(listenerType string) (bool, bool, error) {
+	var err error
+	var listener listeners.Listener
+
+	switch listenerType {
+	case listeners.TYPE_VSOCK:
+		if km.vSockListener != nil {
+			km.vSockListener.Stop()
+		}
+
+		km.vSockListener, err = listeners.NewVSockListener()
+
+		if err != nil {
+			var listenerErr *listeners.ListenerError
+			if errors.As(err, &listenerErr) {
+				switch listenerErr.Code() {
+				case listeners.ERR_DISABLE:
+					log.Printf("disabled vSock listener: %s", err)
+					return false, true, nil
+				case listeners.ERR_ABORTED:
+					log.Printf("disabled vSock listener, but config wont be saved: %s", err)
+					return false, false, nil
+				}
+			} else {
+				log.Printf("could not create vsock listener: %s", err)
+				return false, false, err
+			}
+		}
+
+		if km.vSockListener == nil {
+			return false, false, nil
+		}
+
+		listener = km.vSockListener
+	case listeners.TYPE_CYGWIN:
+		km.cygwinListener = new(listeners.Cygwin)
+		km.cygwinListener.Sockfile = filepath.Join(filepath.Dir(km.configPath), "cygwin-agent.sock")
+		listener = km.cygwinListener
+	case listeners.TYPE_NAMED_PIPE:
+		km.namedPipeListener = new(listeners.NamedPipe)
+		listener = km.namedPipeListener
+	case listeners.TYPE_PAGEANT:
+		km.pageantListener = new(listeners.Pageant)
+		listener = km.pageantListener
+	default:
+		return false, false, fmt.Errorf("invalid listener type %s", listenerType)
+	}
+
 	km.lwg.Add(1)
 	go func(l listeners.Listener) {
 		log.Printf("Starting listener %T\n", l)
@@ -617,20 +689,8 @@ func (km *KeyManager) StartListener(listener listeners.Listener) {
 		}
 		km.lwg.Done()
 	}(listener)
-}
 
-func (km *KeyManager) EnsureListenerIs(listener listeners.Listener, enabled bool) {
-	if listener.Running() == enabled {
-		return
-	}
-
-	if listener.Running() == false && enabled == true {
-		km.StartListener(listener)
-	}
-
-	if listener.Running() == true && enabled == false {
-		listener.Stop()
-	}
+	return true, false, nil
 }
 
 func (km *KeyManager) LoadNCryptKey(kc *KeyConfig) (*Key, error) {
@@ -1186,18 +1246,75 @@ func (km *KeyManager) GetPinTimeout() int {
 }
 
 func (km *KeyManager) EnableListener(listenerType string, enabled bool) {
+
+	running := false
+
 	switch listenerType {
 	case listeners.TYPE_PAGEANT:
-		km.EnsureListenerIs(km.pageantListener, enabled)
+		if km.pageantListener != nil {
+			running = km.pageantListener.Running()
+		}
+	case listeners.TYPE_CYGWIN:
+		if km.cygwinListener != nil {
+			running = km.cygwinListener.Running()
+		}
+	case listeners.TYPE_VSOCK:
+		if km.vSockListener != nil {
+			running = km.vSockListener.Running()
+		}
+	case listeners.TYPE_NAMED_PIPE:
+		if km.namedPipeListener != nil {
+			running = km.namedPipeListener.Running()
+		}
+	default:
+		return
+	}
+
+	if running == enabled {
+		return
+	}
+
+	if running == true && enabled == false {
+		switch listenerType {
+		case listeners.TYPE_PAGEANT:
+			if km.pageantListener != nil {
+				km.pageantListener.Stop()
+			}
+		case listeners.TYPE_CYGWIN:
+			if km.cygwinListener != nil {
+				km.cygwinListener.Stop()
+			}
+		case listeners.TYPE_VSOCK:
+			if km.vSockListener != nil {
+				km.vSockListener.Stop()
+			}
+		case listeners.TYPE_NAMED_PIPE:
+			if km.namedPipeListener != nil {
+				km.namedPipeListener.Stop()
+			}
+		default:
+			return
+		}
+	}
+
+	if running == false && enabled == true {
+		listenerStarted, disableListenerInConfig, _ := km.StartListener(listenerType)
+
+		if disableListenerInConfig {
+			enabled = false
+		}
+
+		enabled = listenerStarted
+	}
+
+	switch listenerType {
+	case listeners.TYPE_PAGEANT:
 		km.config.PageantEnabled = enabled
 	case listeners.TYPE_CYGWIN:
-		km.EnsureListenerIs(km.cygwinListener, enabled)
 		km.config.CygwinEnabled = enabled
 	case listeners.TYPE_VSOCK:
-		km.EnsureListenerIs(km.vSockListener, enabled)
 		km.config.VSockEnabled = enabled
 	case listeners.TYPE_NAMED_PIPE:
-		km.EnsureListenerIs(km.namedPipeListener, enabled)
 		km.config.NamedPipeEnabled = enabled
 	}
 }
@@ -1228,7 +1345,11 @@ func (km *KeyManager) Notify(n NotifyMsg) {
 }
 
 func (km *KeyManager) CygwinSocketLocation() string {
-	return km.cygwinListener.Sockfile
+	if km.cygwinListener != nil {
+		return km.cygwinListener.Sockfile
+	}
+
+	return ""
 }
 
 func (km *KeyManager) LoadWebAuthNKey(kc *KeyConfig) (*Key, error) {

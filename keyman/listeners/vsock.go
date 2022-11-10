@@ -3,7 +3,9 @@ package listeners
 import (
 	"context"
 	"fmt"
+	"github.com/lxn/walk"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/registry"
 	"io"
 	"log"
@@ -20,11 +22,11 @@ import (
 
 var (
 	vmWildCard, _     = guid.FromString("00000000-0000-0000-0000-000000000000")
-	HyperVServiceGUID = winio.VsockServiceID(servicePort)
+	HyperVServiceGUID = winio.VsockServiceID(VSockServicePort)
 )
 
 const (
-	servicePort          = 0x22223333
+	VSockServicePort     = 0x23232323
 	HyperVServiceRegPath = `SOFTWARE\Microsoft\Windows NT\CurrentVersion\Virtualization\GuestCommunicationServices`
 	TYPE_VSOCK           = "VSOCK"
 )
@@ -37,6 +39,51 @@ const (
 type VSock struct {
 	running bool
 	pipe    *winio.HvsockListener
+}
+
+func NewVSockListener() (*VSock, error) {
+	if !CheckHvSocket() {
+		return nil, fmt.Errorf("could not open a hyper-v socket")
+	}
+
+	if !CheckHVService() {
+		dlg, err := NewGenericDialog(nil,
+			"Set-up Guest Communication Socket?",
+			"The Hyper-V Guest Communication socket for nCryptAgent was not found. \n\nWould you like to install the registry entry now, or disable WSL2 agent connectivity?",
+			"Install", "Disable")
+		if err != nil {
+			return nil, fmt.Errorf("could not create generic dialog: %w", err)
+		}
+
+		dlg.SetDefaultButton(dlg.ButtonOne)
+		dlg.SetCancelButton(dlg.ButtonTwo)
+		dlg.ButtonOne.Clicked().Attach(dlg.Accept)
+		dlg.ButtonTwo.Clicked().Attach(dlg.Cancel)
+
+		switch dlg.Run() {
+		case walk.DlgCmdOK:
+			program16, _ := windows.UTF16PtrFromString("reg.exe")
+			arguments16, _ := windows.UTF16PtrFromString(fmt.Sprintf("ADD \"HKLM\\%s\\%s\" /v ElementName /t REG_SZ /d \"nCryptAgent\"", HyperVServiceRegPath, HyperVServiceGUID.String()))
+			directory16, _ := windows.UTF16PtrFromString("")
+
+			err = windows.ShellExecute(0, windows.StringToUTF16Ptr("runas"), program16, arguments16, directory16, 0)
+			if err != nil {
+				log.Printf("Failed creating registry key: %s", err)
+				walk.MsgBox(nil, "Error", "Failed to create registry key. WSL2 connectivity will be disabled.", walk.MsgBoxOK)
+				return nil, &ListenerError{msg: "failed to add registry key", code: ERR_DISABLE}
+			}
+
+			walk.MsgBox(nil, "Success", "Successfully created registry key. Please ensure you update your WSL2 .profile or equivalent using the script in the config tab.", walk.MsgBoxOK)
+		case walk.DlgCmdCancel:
+			return nil, &ListenerError{msg: "disable", code: ERR_DISABLE}
+		case walk.DlgCmdNone:
+			return nil, &ListenerError{msg: "abort", code: ERR_ABORTED}
+		}
+	}
+
+	vsock := new(VSock)
+
+	return vsock, nil
 }
 
 func (s *VSock) Running() bool {
@@ -53,7 +100,11 @@ func (s *VSock) Name() string {
 
 func (s *VSock) Stop() error {
 	s.running = false
-	return s.pipe.Close()
+	if s.pipe != nil {
+		return s.pipe.Close()
+	}
+
+	return nil
 }
 
 type vSockWorker struct {

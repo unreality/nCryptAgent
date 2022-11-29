@@ -8,6 +8,7 @@ package ui
 import (
 	"fmt"
 	"log"
+	"ncryptagent/deviceevents"
 	"ncryptagent/keyman"
 	"os"
 	"path/filepath"
@@ -34,7 +35,7 @@ func RunUI() {
 
 	var (
 		err  error
-		mtw  *ManageKeysWindow
+		mkw  *ManageKeysWindow
 		tray *Tray
 	)
 
@@ -61,15 +62,15 @@ func RunUI() {
 
 	defer km.Close()
 
-	for mtw == nil {
-		mtw, err = NewManageKeysWindow(km)
+	for mkw == nil {
+		mkw, err = NewManageKeysWindow(km)
 		if err != nil {
 			time.Sleep(time.Millisecond * 400)
 		}
 	}
 
 	for tray == nil {
-		tray, err = NewTray(mtw)
+		tray, err = NewTray(mkw)
 		if err != nil {
 			time.Sleep(time.Millisecond * 400)
 		}
@@ -81,11 +82,11 @@ func RunUI() {
 		return
 	}
 
-	mtw.ReloadKeys()
-	km.SetHwnd(mtw.Handle())
+	mkw.ReloadKeys()
+	km.SetHwnd(mkw.Handle())
 
 	if tray == nil {
-		win.ShowWindow(mtw.Handle(), win.SW_MINIMIZE)
+		win.ShowWindow(mkw.Handle(), win.SW_MINIMIZE)
 	}
 
 	// Setup a chan to receive notification messages
@@ -106,11 +107,17 @@ func RunUI() {
 
 	km.SetNotifyChan(notifyChan)
 
-	mtw.Run()
+	// register for usb insert/remove events
+	err = deviceevents.RegisterDeviceNotification(windows.HWND(mkw.Handle()))
+	if err != nil {
+		showErrorCustom(nil, "Unable to register for USB events KeyManager", fmt.Sprintf("Inserting/Removing USB will not update available keys: %s", err))
+	}
+
+	mkw.Run()
 	if tray != nil {
 		tray.Dispose()
 	}
-	mtw.Dispose()
+	mkw.Dispose()
 	quitChan <- 0
 }
 

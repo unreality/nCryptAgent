@@ -89,11 +89,12 @@ func (tv *ListView) StyleCell(style *walk.CellStyle) {
 	var err error
 
 	//https://diymediahome.org/windows-icons-reference-list-with-details-locations-images/
-	if key.LoadError != nil {
-		icon, err = loadSystemIcon("imageres", 100, 32) // Cross Shield
+	if key.Missing == true {
+		icon, err = loadSystemIcon("imageres", 99, 32) // Question Shield
 	} else {
 		icon, err = loadSystemIcon("imageres", 77, 32) // Key
 	}
+	//icon, err = loadSystemIcon("imageres", 100, 32) // Cross Shield
 	//icon, err := loadSystemIcon("imageres", 54, 32) // Padlock
 	//icon, err := loadSystemIcon("imageres", 77, 32) // Key
 	//icon, err := loadSystemIcon("imageres", 73, 32) // UAC Shield

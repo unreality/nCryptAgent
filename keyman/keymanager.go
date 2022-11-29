@@ -693,6 +693,22 @@ func (km *KeyManager) StartListener(listenerType string) (bool, bool, error) {
 	return true, false, nil
 }
 
+func (km *KeyManager) RescanNCryptKeys() error {
+
+	log.Printf("Rescanning for all NCrypt keys")
+	for _, k := range km.KeysList() {
+		if k.Type == "NCRYPT" {
+			_, err := km.LoadNCryptKey(k.config)
+
+			if err != nil {
+				k.Missing = true
+			}
+		}
+	}
+
+	return nil
+}
+
 func (km *KeyManager) LoadNCryptKey(kc *KeyConfig) (*Key, error) {
 	providerHandle, err := km.getProviderHandle(kc.ProviderName)
 	if err != nil {

@@ -116,6 +116,7 @@ func (cp *ConfPage) onSaveConfigClicked() {
 		cp.keyManager.SetPinTimeout(intVal)
 	}
 
+	cp.keyManager.SetNotificationsEnabled(cp.confPageView.globalConfView.NotificationsEdit.Checked())
 	cp.keyManager.EnableListener(listeners.TYPE_PAGEANT, cp.confPageView.pageantConfView.ListenerEnabled.Checked())
 	cp.keyManager.EnableListener(listeners.TYPE_NAMED_PIPE, cp.confPageView.namedPipeConfView.ListenerEnabled.Checked())
 	cp.keyManager.EnableListener(listeners.TYPE_VSOCK, cp.confPageView.vsockConfView.ListenerEnabled.Checked())

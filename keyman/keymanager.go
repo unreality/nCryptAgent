@@ -79,15 +79,18 @@ type KeyConfig struct {
 	Algorithm      string `json:"algorithm,omitempty"`
 	Length         int    `json:"length,omitempty"`
 	VerifyRequired bool   `json:"verifyRequired,omitempty"`
+	NoPin          bool   `json:"noPin,omitempty"`
 }
 
 type KeyManagerConfig struct {
-	Keys             []*KeyConfig `json:"keys,omitempty"`
-	PinTimeout       int          `json:"pinTimeout,omitempty"`
-	PageantEnabled   bool         `json:"pageant"`
-	VSockEnabled     bool         `json:"vsock"`
-	NamedPipeEnabled bool         `json:"namedpipe"`
-	CygwinEnabled    bool         `json:"cygwin"`
+	Keys                 []*KeyConfig `json:"keys,omitempty"`
+	PinTimeout           int          `json:"pinTimeout,omitempty"`
+	PageantEnabled       bool         `json:"pageant"`
+	VSockEnabled         bool         `json:"vsock"`
+	NamedPipeEnabled     bool         `json:"namedpipe"`
+	CygwinEnabled        bool         `json:"cygwin"`
+	DisableNotifications bool         `json:"disableNotifications,omitempty"`
+	USBEvents            bool         `json:"usbEvents,omitempty"`
 }
 
 type Key struct {
@@ -116,7 +119,7 @@ type Key struct {
 }
 
 func (k *Key) TakeFocus() bool {
-	if k.hwnd != 0 {
+	if !k.config.NoPin && k.hwnd != 0 {
 		if k.Type == "NCRYPT" && k.signer != nil {
 			if ncryptSigner, ok := (*k.signer).(*Signer); ok {
 				if ncryptSigner.timeractive {
@@ -143,13 +146,15 @@ func (k *Key) TakeFocus() bool {
 }
 
 func (k *Key) ReturnFocus() {
-	win.ShowWindow(win.HWND(k.hwnd), win.SW_HIDE)
-	win.AttachThreadInput(int32(k.focusData.myID), int32(k.focusData.victimID), true)
-	win.ShowWindow(k.focusData.victimHWND, win.SW_NORMAL)
-	win.SetForegroundWindow(k.focusData.victimHWND)
-	win.SetFocus(k.focusData.victimHWND)
-	win.SetActiveWindow(k.focusData.victimHWND)
-	win.AttachThreadInput(int32(k.focusData.myID), int32(k.focusData.victimID), false)
+	if !k.config.NoPin {
+		win.ShowWindow(win.HWND(k.hwnd), win.SW_HIDE)
+		win.AttachThreadInput(int32(k.focusData.myID), int32(k.focusData.victimID), true)
+		win.ShowWindow(k.focusData.victimHWND, win.SW_SHOW)
+		win.SetForegroundWindow(k.focusData.victimHWND)
+		win.SetFocus(k.focusData.victimHWND)
+		win.SetActiveWindow(k.focusData.victimHWND)
+		win.AttachThreadInput(int32(k.focusData.myID), int32(k.focusData.victimID), false)
+	}
 }
 
 func (k *Key) AlgorithmReadable() string {
@@ -497,12 +502,14 @@ func NewKeyManager(configPath string) (*KeyManager, error) {
 		log.Printf("Using default config\n")
 		// create a default config
 		kmc = KeyManagerConfig{
-			Keys:             nil,
-			PinTimeout:       5,
-			CygwinEnabled:    true,
-			PageantEnabled:   true,
-			VSockEnabled:     true,
-			NamedPipeEnabled: true,
+			Keys:                 nil,
+			PinTimeout:           5,
+			CygwinEnabled:        true,
+			PageantEnabled:       true,
+			VSockEnabled:         true,
+			NamedPipeEnabled:     true,
+			DisableNotifications: true,
+			USBEvents:            false,
 		}
 	} else {
 		//log.Printf("Loading %s\n", configPath)
@@ -898,6 +905,7 @@ func (km *KeyManager) CreateNewNCryptKey(keyName string, containerName string, p
 		ProviderName:  providerName,
 		Length:        bits,
 		Algorithm:     algorithm,
+		NoPin:         password == "",
 	}
 
 	k := Key{
@@ -1159,6 +1167,7 @@ func (km *KeyManager) CreateNewWebAuthNKey(keyName string, application string, c
 			Algorithm:      "",
 			Length:         0,
 			VerifyRequired: verifyRequired,
+			NoPin:          false,
 		},
 		handle: 0,
 		signer: nil,
@@ -1260,6 +1269,12 @@ func (km *KeyManager) SetPinTimeout(timeout int) {
 func (km *KeyManager) GetPinTimeout() int {
 	return km.config.PinTimeout
 }
+func (km *KeyManager) GetUSBEventsEnabled() bool {
+	return km.config.USBEvents
+}
+func (km *KeyManager) GetNotificationsEnabled() bool {
+	return !km.config.DisableNotifications
+}
 
 func (km *KeyManager) EnableListener(listenerType string, enabled bool) {
 
@@ -1355,8 +1370,10 @@ func (km *KeyManager) SetNotifyChan(c chan NotifyMsg) {
 }
 
 func (km *KeyManager) Notify(n NotifyMsg) {
-	if km.notifyChan != nil {
-		km.notifyChan <- n
+	if km.GetNotificationsEnabled() {
+		if km.notifyChan != nil {
+			km.notifyChan <- n
+		}
 	}
 }
 
@@ -1396,4 +1413,8 @@ func (km *KeyManager) LoadWebAuthNKey(kc *KeyConfig) (*Key, error) {
 	k.LoadCertificate("")
 
 	return &k, nil
+}
+
+func (km *KeyManager) SetNotificationsEnabled(enabled bool) {
+	km.config.DisableNotifications = !enabled
 }

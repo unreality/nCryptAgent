@@ -8,7 +8,8 @@ import (
 type GlobalConfView struct {
 	*walk.GroupBox
 
-	PinTimeoutEdit *walk.LineEdit
+	PinTimeoutEdit    *walk.LineEdit
+	NotificationsEdit *walk.CheckBox
 }
 
 func NewGlobalConfView(parent walk.Container) (*GlobalConfView, error) {
@@ -30,7 +31,7 @@ func NewGlobalConfView(parent walk.Container) (*GlobalConfView, error) {
 	layout.SetMargins(walk.Margins{10, 10, 10, 10})
 	layout.SetColumnStretchFactor(1, 3)
 
-	//Setup the name
+	//Setup PIN Timeout
 	pinTimeoutLabel, err := walk.NewTextLabel(gcv)
 	if err != nil {
 		return nil, err
@@ -46,6 +47,23 @@ func NewGlobalConfView(parent walk.Container) (*GlobalConfView, error) {
 	layout.SetRange(gcv.PinTimeoutEdit, walk.Rectangle{1, 0, 1, 1})
 	gcv.PinTimeoutEdit.SetText("0")
 	gcv.PinTimeoutEdit.SetAlignment(walk.AlignHFarVFar)
+
+	//Setup the notifications checkbox
+	notificationLabel, err := walk.NewTextLabel(gcv)
+	if err != nil {
+		return nil, err
+	}
+	layout.SetRange(notificationLabel, walk.Rectangle{0, 1, 1, 1})
+	notificationLabel.SetTextAlignment(walk.AlignHNearVCenter)
+	notificationLabel.SetText(fmt.Sprintf("&Show Notifications:"))
+	notificationLabel.SetToolTipText("Show toast notifications when a key operation succeeds or fails.")
+
+	if gcv.NotificationsEdit, err = walk.NewCheckBox(gcv); err != nil {
+		return nil, err
+	}
+	layout.SetRange(gcv.NotificationsEdit, walk.Rectangle{1, 1, 1, 1})
+	gcv.NotificationsEdit.SetChecked(true)
+	gcv.NotificationsEdit.SetAlignment(walk.AlignHFarVFar)
 
 	if err := walk.InitWrapperWindow(gcv); err != nil {
 		return nil, err

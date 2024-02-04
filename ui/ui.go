@@ -107,10 +107,12 @@ func RunUI() {
 
 	km.SetNotifyChan(notifyChan)
 
-	// register for usb insert/remove events
-	err = deviceevents.RegisterDeviceNotification(windows.HWND(mkw.Handle()))
-	if err != nil {
-		showErrorCustom(nil, "Unable to register for USB events KeyManager", fmt.Sprintf("Inserting/Removing USB will not update available keys: %s", err))
+	if km.GetUSBEventsEnabled() {
+		// register for usb insert/remove events
+		err = deviceevents.RegisterDeviceNotification(windows.HWND(mkw.Handle()))
+		if err != nil {
+			showErrorCustom(nil, "Unable to register for USB events KeyManager", fmt.Sprintf("Inserting/Removing USB will not update available keys: %s", err))
+		}
 	}
 
 	mkw.Run()

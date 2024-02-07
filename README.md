@@ -32,7 +32,7 @@ Use your WebAuthN authenticator as your SSH key with `sk-ssh-ed25519@openssh.com
 
 ## Getting Started
 
-* Download and launch the latest release
+* Download and launch the latest [release](https://github.com/unreality/nCryptAgent/releases)
 * Click **Create Key** and enter a key name and container name.
   * **Key Name** is a friendly descriptive name for the SSH Key
   * **Container Name** is the nCrypt key container identifier which will be used - it will be shown in the password prompt when signing is requested.
